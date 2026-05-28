@@ -1,6 +1,8 @@
 # Node dependencies
 node_modules/
 
+echo "node_modules/" >> .gitignore
+
 # Production build outputs
 dist/
 build/
