@@ -96,9 +96,8 @@ export default function CalendarWidget({ history, selectedDate, tasks, handleSel
           const dayNum = idx + 1;
           const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${dayNum.toString().padStart(2, '0')}`;
           
-          // Compat check for seed history ranges (March 14-27, 2026)
-          const isSeededRange = currentYear === 2026 && currentMonth === 2 && dayNum >= 14 && dayNum <= 27;
-          const historyIndex = isSeededRange ? dayNum - 14 : null;
+          const isSeededRange = false;
+          const historyIndex = null;
           
           const isSelected = selectedDate === dateStr;
           const dayTasks = tasks.filter(t => t.dueDate === dateStr);

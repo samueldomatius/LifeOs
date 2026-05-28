@@ -12,6 +12,8 @@ export default function TasksManager({
   setTaskTag, 
   taskTime,
   setTaskTime,
+  taskEndTime,
+  setTaskEndTime,
   taskLink,
   setTaskLink,
   handleAddTask, 
@@ -35,6 +37,7 @@ export default function TasksManager({
   const [editTaskPriority, setEditTaskPriority] = useState('medium');
   const [editTaskTag, setEditTaskTag] = useState('Productivity');
   const [editTaskTime, setEditTaskTime] = useState('');
+  const [editTaskEndTime, setEditTaskEndTime] = useState('');
   const [editTaskLink, setEditTaskLink] = useState('');
   return (
     <div className="subpanel-overlay">
@@ -89,13 +92,25 @@ export default function TasksManager({
             <option value="Growth">Growth</option>
           </select>
 
-          <input 
-            type="time" 
-            className="select-input" 
-            value={taskTime} 
-            onChange={(e) => setTaskTime(e.target.value)}
-            style={{ flex: '1 1 80px', color: 'var(--text-primary)' }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: '1 1 180px' }}>
+            <input 
+              type="time" 
+              className="select-input" 
+              value={taskTime} 
+              onChange={(e) => setTaskTime(e.target.value)}
+              style={{ flex: '1', color: 'var(--text-primary)', minWidth: '70px' }}
+              title="Jam Mulai"
+            />
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>s/d</span>
+            <input 
+              type="time" 
+              className="select-input" 
+              value={taskEndTime} 
+              onChange={(e) => setTaskEndTime(e.target.value)}
+              style={{ flex: '1', color: 'var(--text-primary)', minWidth: '70px' }}
+              title="Jam Selesai"
+            />
+          </div>
 
           <button type="submit" className="primary-btn" style={{ flex: '1 1 60px' }}>
             Log
@@ -214,6 +229,7 @@ export default function TasksManager({
                       priority: editTaskPriority,
                       tag: editTaskTag,
                       time: editTaskTime,
+                      endTime: editTaskEndTime,
                       link: editTaskLink
                     });
                     setEditingTaskId(null);
@@ -258,13 +274,25 @@ export default function TasksManager({
                       <option value="Finance">Finance</option>
                       <option value="Growth">Growth</option>
                     </select>
-                    <input 
-                      type="time" 
-                      className="select-input" 
-                      value={editTaskTime} 
-                      onChange={(e) => setEditTaskTime(e.target.value)}
-                      style={{ flex: 1, padding: '4px', fontSize: '0.7rem', color: 'var(--text-primary)' }}
-                    />
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flex: 1 }}>
+                      <input 
+                        type="time" 
+                        className="select-input" 
+                        value={editTaskTime} 
+                        onChange={(e) => setEditTaskTime(e.target.value)}
+                        style={{ flex: 1, padding: '4px', fontSize: '0.7rem', color: 'var(--text-primary)' }}
+                        title="Jam Mulai"
+                      />
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>s/d</span>
+                      <input 
+                        type="time" 
+                        className="select-input" 
+                        value={editTaskEndTime} 
+                        onChange={(e) => setEditTaskEndTime(e.target.value)}
+                        style={{ flex: 1, padding: '4px', fontSize: '0.7rem', color: 'var(--text-primary)' }}
+                        title="Jam Selesai"
+                      />
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: '6px', alignSelf: 'flex-end', marginTop: '4px' }}>
                     <button type="submit" className="primary-btn" style={{ padding: '4px 10px', fontSize: '0.7rem', borderRadius: '8px' }}>Simpan</button>

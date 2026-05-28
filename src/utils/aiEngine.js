@@ -92,22 +92,7 @@ async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineDat
 }
 
 // Pre-seeded 2-week history data to showcase personalized AI pattern learning instantly
-export const getSeededHistory = () => [
-  { date: '2026-05-14', sleepHours: 8, sleepQuality: 'good', steps: 11000, workoutMinutes: 45, waterIntake: 2200, directMood: 'good', completedTasks: 6, snoozedTasks: 0, expense: 50000, income: 0, lifeScore: 92 },
-  { date: '2026-05-15', sleepHours: 7.5, sleepQuality: 'good', steps: 9500, workoutMinutes: 30, waterIntake: 2000, directMood: 'good', completedTasks: 5, snoozedTasks: 1, expense: 120000, income: 0, lifeScore: 87 },
-  { date: '2026-05-16', sleepHours: 5, sleepQuality: 'poor', steps: 4000, workoutMinutes: 0, waterIntake: 1200, directMood: 'tired', completedTasks: 2, snoozedTasks: 4, expense: 350000, income: 0, lifeScore: 54 }, // Sleep deprivation -> low productivity, high expense
-  { date: '2026-05-17', sleepHours: 8.5, sleepQuality: 'good', steps: 12000, workoutMinutes: 60, waterIntake: 2500, directMood: 'good', completedTasks: 7, snoozedTasks: 0, expense: 40000, income: 0, lifeScore: 95 },
-  { date: '2026-05-18', sleepHours: 6.5, sleepQuality: 'fair', steps: 8000, workoutMinutes: 20, waterIntake: 1800, directMood: 'neutral', completedTasks: 4, snoozedTasks: 2, expense: 85000, income: 0, lifeScore: 76 },
-  { date: '2026-05-19', sleepHours: 6, sleepQuality: 'poor', steps: 5500, workoutMinutes: 0, waterIntake: 1500, directMood: 'stressed', completedTasks: 3, snoozedTasks: 3, expense: 220000, income: 0, lifeScore: 61 },
-  { date: '2026-05-20', sleepHours: 7.8, sleepQuality: 'good', steps: 10500, workoutMinutes: 40, waterIntake: 2100, directMood: 'good', completedTasks: 6, snoozedTasks: 0, expense: 90000, income: 0, lifeScore: 90 },
-  { date: '2026-05-21', sleepHours: 7.2, sleepQuality: 'fair', steps: 9000, workoutMinutes: 30, waterIntake: 2000, directMood: 'good', completedTasks: 5, snoozedTasks: 1, expense: 75000, income: 0, lifeScore: 84 },
-  { date: '2026-05-22', sleepHours: 5.5, sleepQuality: 'poor', steps: 4800, workoutMinutes: 0, waterIntake: 1000, directMood: 'tired', completedTasks: 2, snoozedTasks: 3, expense: 280000, income: 0, lifeScore: 57 }, // Correlation: Low sleep -> high expense
-  { date: '2026-05-23', sleepHours: 9, sleepQuality: 'good', steps: 13000, workoutMinutes: 50, waterIntake: 2600, directMood: 'good', completedTasks: 8, snoozedTasks: 0, expense: 110000, income: 500000, lifeScore: 96 },
-  { date: '2026-05-24', sleepHours: 8, sleepQuality: 'good', steps: 8500, workoutMinutes: 30, waterIntake: 2000, directMood: 'good', completedTasks: 5, snoozedTasks: 0, expense: 65000, income: 0, lifeScore: 89 },
-  { date: '2026-05-25', sleepHours: 6.2, sleepQuality: 'fair', steps: 7200, workoutMinutes: 15, waterIntake: 1600, directMood: 'neutral', completedTasks: 3, snoozedTasks: 2, expense: 130000, income: 0, lifeScore: 72 },
-  { date: '2026-05-26', sleepHours: 4.8, sleepQuality: 'poor', steps: 3500, workoutMinutes: 0, waterIntake: 900, directMood: 'anxious', completedTasks: 1, snoozedTasks: 5, expense: 390000, income: 0, lifeScore: 48 }, // Severe correlation
-  { date: '2026-05-27', sleepHours: 8.2, sleepQuality: 'good', steps: 11500, workoutMinutes: 45, waterIntake: 2300, directMood: 'good', completedTasks: 6, snoozedTasks: 0, expense: 45000, income: 0, lifeScore: 93 }
-];
+export const getSeededHistory = () => [];
 
 // Core Life Quality Score Calculator
 export const calculateLifeScore = (currentDay, tasks, finances) => {

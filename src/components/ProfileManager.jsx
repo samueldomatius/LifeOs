@@ -9,7 +9,8 @@ export default function ProfileManager({
   isStreakActive, 
   selectedDate,
   onUpdateTask,
-  onDeleteTask
+  onDeleteTask,
+  onResetAllData
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(userProfile.name);
@@ -134,6 +135,25 @@ export default function ProfileManager({
                   {userProfile.bio || 'Living life on autopilot ✨'}
                 </p>
               </div>
+              <button 
+                type="button"
+                onClick={onResetAllData}
+                className="primary-btn"
+                style={{ 
+                  marginTop: '0.75rem', 
+                  background: 'var(--accent-coral)', 
+                  color: '#fff', 
+                  border: 'none', 
+                  borderRadius: '12px', 
+                  padding: '8px 16px', 
+                  fontSize: '0.75rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  width: '100%'
+                }}
+              >
+                ⚠️ Reset Semua Data (Restart Aplikasi)
+              </button>
             </>
           )}
         </div>
