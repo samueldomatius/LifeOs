@@ -16,6 +16,13 @@ export default function ProfileManager({
   const [editName, setEditName] = useState(userProfile.name);
   const [editAvatar, setEditAvatar] = useState(userProfile.avatar);
   const [editBio, setEditBio] = useState(userProfile.bio || '');
+  const [editCustomKey, setEditCustomKey] = useState(() => {
+    try {
+      return localStorage.getItem('lifeos_custom_gemini_key') || '';
+    } catch (e) {
+      return '';
+    }
+  });
 
   // Calculate statistics
   const todayTasks = tasks.filter(t => t.dueDate === selectedDate);
@@ -36,6 +43,9 @@ export default function ProfileManager({
       avatar: editAvatar.trim(),
       bio: editBio.trim()
     });
+    try {
+      localStorage.setItem('lifeos_custom_gemini_key', editCustomKey.trim());
+    } catch (e) {}
     setIsEditing(false);
   };
 
@@ -109,7 +119,19 @@ export default function ProfileManager({
                   style={{ width: '100%', fontSize: '0.8rem', padding: '6px 10px', marginTop: '3px' }}
                 />
               </div>
-              <button type="submit" className="primary-btn" style={{ display: 'flex', alignItems: 'center', justify: 'center', gap: '6px', width: '100%', marginTop: '6px' }}>
+              <div style={{ textAlign: 'left' }}>
+                <label style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>KUNCI API GEMINI KUSTOM (OPSIONAL)</label>
+                <input 
+                  type="password" 
+                  className="task-input" 
+                  placeholder="AIzaSy..."
+                  value={editCustomKey} 
+                  onChange={(e) => setEditCustomKey(e.target.value)} 
+                  style={{ width: '100%', fontSize: '0.8rem', padding: '6px 10px', marginTop: '3px' }}
+                />
+                <div style={{ fontSize: '0.55rem', color: 'var(--text-muted)', marginTop: '4px' }}>Jika kunci bawaan error/habis, masukkan kunci API Gemini gratis Anda sendiri di sini untuk pemulihan instan!</div>
+              </div>
+              <button type="submit" className="primary-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%', marginTop: '6px' }}>
                 <Save size={14} /> Simpan Perubahan
               </button>
             </form>

@@ -3,25 +3,43 @@
 
 let currentKeyIndex = 0;
 
-const API_KEYS = [
-  "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",
-  "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",
-  "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",
-  "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",
-  "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",
-  "AIzaSyBGydVFDEE89tYUwbH9SnZeINXBD4AZinY",
-  "AIzaSyB_enA5PeId2B5Qpy9WgZXyr9MzUMGsvFc",
-  "AIzaSyDlytncg_-rfoa3BXLN8TCmtc_OUTWjUbU",
-  "AIzaSyA9FJ6dT3m7IWrpB_F1FlKM8yc89H1Orig"
-];
+// Load API keys dynamically from environment variables for Git security
+const envKeysStr = import.meta.env.VITE_GEMINI_API_KEYS || "";
+const rawEnvKeys = envKeysStr
+  ? envKeysStr
+      .trim()
+      .replace(/^["']|["']$/g, "") // strip leading/trailing quotes
+      .split(",")
+      .map(k => k.trim().replace(/^["']|["']$/g, "")) // strip quotes from individual keys
+      .filter(Boolean)
+  : [];
+
+// Prioritize Gemini Native keys first, then fall back to OpenRouter keys
+const geminiKeys = rawEnvKeys.filter(k => k.startsWith("AIzaSy"));
+const openRouterKeys = rawEnvKeys.filter(k => k.startsWith("sk-or-v1-"));
+const otherKeys = rawEnvKeys.filter(k => !k.startsWith("AIzaSy") && !k.startsWith("sk-or-v1-"));
+
+const API_KEYS = [...geminiKeys, ...openRouterKeys, ...otherKeys];
+console.log(`🤖 [LifeOS AI Core] Terdeteksi ${API_KEYS.length} API Key dari .env (Gemini: ${geminiKeys.length}, OpenRouter: ${openRouterKeys.length})`);
+
+export const getApiKeysList = () => {
+  try {
+    const customKey = localStorage.getItem('lifeos_custom_gemini_key');
+    if (customKey && customKey.trim()) {
+      return [customKey.trim(), ...geminiKeys, ...openRouterKeys, ...otherKeys];
+    }
+  } catch (e) {}
+  return [...geminiKeys, ...openRouterKeys, ...otherKeys];
+};
 
 // Helper to make direct HTTP fetch requests supporting OpenRouter and Gemini Native key rotation failover
 async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineData = null, retryCount = 0, errorsAccumulated = []) {
-  if (retryCount >= API_KEYS.length) {
+  const keys = getApiKeysList();
+  if (retryCount >= keys.length) {
     throw new Error(`Semua API Key habis. Detail: [ ${errorsAccumulated.join(" | ")} ]`);
   }
   
-  const activeKey = API_KEYS[currentKeyIndex];
+  const activeKey = keys[currentKeyIndex % keys.length];
 
   try {
     if (activeKey.startsWith("sk-or-v1-")) {
@@ -99,9 +117,8 @@ async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineDat
     } else {
       // --- Gemini Native GenerateContent Call ---
       const nativeModels = [
-        "gemini-2.0-flash",
         "gemini-2.5-flash",
-        "gemini-1.5-flash"
+        "gemini-2.0-flash-lite"
       ];
       
       const nativeErrors = [];
@@ -169,7 +186,7 @@ async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineDat
   } catch (error) {
     const errorMsg = `KeyIndex ${currentKeyIndex}: ${error.message}`;
     console.warn(errorMsg);
-    currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
+    currentKeyIndex = (currentKeyIndex + 1) % keys.length;
     return await callGemini(systemPrompt, userPrompt, jsonSchema, inlineData, retryCount + 1, [...errorsAccumulated, errorMsg]);
   }
 }
