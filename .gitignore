@@ -56,3 +56,4 @@ coverage/
 *.tgz
 *.zip
 
+.env
