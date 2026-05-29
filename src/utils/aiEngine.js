@@ -32,6 +32,33 @@ export const getApiKeysList = () => {
   return [...geminiKeys, ...openRouterKeys, ...otherKeys];
 };
 
+export const safeParseJSON = (text) => {
+  let cleaned = text.trim();
+  if (cleaned.startsWith("```json")) {
+    cleaned = cleaned.substring(7);
+  } else if (cleaned.startsWith("```")) {
+    cleaned = cleaned.substring(3);
+  }
+  if (cleaned.endsWith("```")) {
+    cleaned = cleaned.substring(0, cleaned.length - 3);
+  }
+  cleaned = cleaned.trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    const jsonRegex = /\{[\s\S]*\}/;
+    const match = cleaned.match(jsonRegex);
+    if (match) {
+      try {
+        return JSON.parse(match[0]);
+      } catch (innerError) {
+        console.error("JSON block extraction failed:", innerError);
+      }
+    }
+    throw e;
+  }
+};
+
 // Helper to make direct HTTP fetch requests supporting OpenRouter and Gemini Native key rotation failover
 async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineData = null, retryCount = 0, errorsAccumulated = []) {
   const keys = getApiKeysList();
@@ -41,13 +68,21 @@ async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineDat
   
   const activeKey = keys[currentKeyIndex % keys.length];
 
+  let finalSystemPrompt = systemPrompt;
+  if (jsonSchema) {
+    const schemaStr = JSON.stringify(jsonSchema, null, 2);
+    finalSystemPrompt = `${systemPrompt || ""}\n\nIMPORTANT: You must respond ONLY with a valid JSON object matching the following schema. Do NOT include any conversational introduction, explanation, or notes. Your entire response must be a single parseable JSON object.
+JSON Schema:
+${schemaStr}`;
+  }
+
   try {
     if (activeKey.startsWith("sk-or-v1-")) {
       // --- OpenRouter Chat Completion Call ---
       const url = "https://openrouter.ai/api/v1/chat/completions";
       const messages = [];
-      if (systemPrompt) {
-        messages.push({ role: "system", content: systemPrompt });
+      if (finalSystemPrompt) {
+        messages.push({ role: "system", content: finalSystemPrompt });
       }
 
       if (inlineData) {
@@ -69,8 +104,9 @@ async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineDat
       }
 
       const openRouterModels = [
+        "google/gemini-1.5-flash:free",
+        "openrouter/free",
         "google/gemini-2.5-flash",
-        "google/gemini-2.0-flash",
         "deepseek/deepseek-chat"
       ];
       
@@ -85,7 +121,7 @@ async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineDat
             temperature: jsonSchema ? 0.15 : 0.7
           };
 
-          if (jsonSchema) {
+          if (jsonSchema && !modelName.includes("free")) {
             requestBody.response_format = { type: "json_object" };
           }
 
@@ -106,6 +142,9 @@ async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineDat
           } else {
             const errText = await response.text();
             modelErrors.push(`${modelName}(${response.status}: ${errText.substring(0, 90)})`);
+            if (response.status === 402 || response.status === 401 || response.status === 403) {
+              break;
+            }
           }
         } catch (e) {
           modelErrors.push(`${modelName} error: ${e.message}`);
@@ -136,10 +175,10 @@ async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineDat
           }
 
           const parts = [];
-          if (systemPrompt && userPrompt) {
-            parts.push({ text: `${systemPrompt}\n\nUser Input/Context:\n${userPrompt}` });
-          } else if (systemPrompt) {
-            parts.push({ text: systemPrompt });
+          if (finalSystemPrompt && userPrompt) {
+            parts.push({ text: `${finalSystemPrompt}\n\nUser Input/Context:\n${userPrompt}` });
+          } else if (finalSystemPrompt) {
+            parts.push({ text: finalSystemPrompt });
           } else if (userPrompt) {
             parts.push({ text: userPrompt });
           }
@@ -175,6 +214,9 @@ async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineDat
           } else {
             const errText = await response.text();
             nativeErrors.push(`${modelName}(${response.status}: ${errText.substring(0, 90)})`);
+            if (response.status === 429 || response.status === 400 || response.status === 403 || response.status === 401) {
+              break;
+            }
           }
         } catch (e) {
           nativeErrors.push(`${modelName} error: ${e.message}`);
@@ -324,17 +366,7 @@ Tasks Completed: ${completedCount} completed, ${snoozedCount} snoozed.
 
   try {
     const rawText = await callGemini(systemPrompt, userPrompt, explanationSchema);
-    let cleaned = rawText.trim();
-    if (cleaned.startsWith("```json")) {
-      cleaned = cleaned.substring(7);
-    } else if (cleaned.startsWith("```")) {
-      cleaned = cleaned.substring(3);
-    }
-    if (cleaned.endsWith("```")) {
-      cleaned = cleaned.substring(0, cleaned.length - 3);
-    }
-    cleaned = cleaned.trim();
-    return JSON.parse(cleaned);
+    return safeParseJSON(rawText);
   } catch (error) {
     console.error("Gemini explanation generation failed, using mock fallback:", error);
     // Mock Fallback
@@ -577,17 +609,7 @@ If the image is not a receipt or doesn't have any purchase text, return "No rece
       data: base64Data
     });
 
-    let cleaned = rawText.trim();
-    if (cleaned.startsWith("```json")) {
-      cleaned = cleaned.substring(7);
-    } else if (cleaned.startsWith("```")) {
-      cleaned = cleaned.substring(3);
-    }
-    if (cleaned.endsWith("```")) {
-      cleaned = cleaned.substring(0, cleaned.length - 3);
-    }
-    cleaned = cleaned.trim();
-    return JSON.parse(cleaned);
+    return safeParseJSON(rawText);
   } catch (error) {
     console.error("Gemini receipt scanning failed:", error);
     throw error;
@@ -640,17 +662,7 @@ Transactions: ${safeFinances.map(f => `${f.description} (Rp ${f.amount})`).join(
 
   try {
     const rawText = await callGemini(systemPrompt, userPrompt, summarySchema);
-    let cleaned = rawText.trim();
-    if (cleaned.startsWith("```json")) {
-      cleaned = cleaned.substring(7);
-    } else if (cleaned.startsWith("```")) {
-      cleaned = cleaned.substring(3);
-    }
-    if (cleaned.endsWith("```")) {
-      cleaned = cleaned.substring(0, cleaned.length - 3);
-    }
-    cleaned = cleaned.trim();
-    return JSON.parse(cleaned);
+    return safeParseJSON(rawText);
   } catch (error) {
     console.error("Gemini daily summary failed, using mock fallback:", error);
     return {
@@ -715,17 +727,7 @@ Financial Goals: ${JSON.stringify(goals || [])}
 
   try {
     const rawText = await callGemini(systemPrompt, userPrompt, adviceSchema);
-    let cleaned = rawText.trim();
-    if (cleaned.startsWith("```json")) {
-      cleaned = cleaned.substring(7);
-    } else if (cleaned.startsWith("```")) {
-      cleaned = cleaned.substring(3);
-    }
-    if (cleaned.endsWith("```")) {
-      cleaned = cleaned.substring(0, cleaned.length - 3);
-    }
-    cleaned = cleaned.trim();
-    return JSON.parse(cleaned);
+    return safeParseJSON(rawText);
   } catch (error) {
     console.error("Gemini financial advice failed, using mock fallback:", error);
     return {

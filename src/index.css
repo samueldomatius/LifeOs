@@ -992,7 +992,7 @@ span, p, input, select {
 
 /* Center Chat Pop-up Modal */
 .chat-drawer-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   bottom: 0;
   left: 0;
@@ -1205,7 +1205,7 @@ span, p, input, select {
 
 /* AI Scanner Overlay styling */
 .scanner-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   bottom: 0;
   left: 0;

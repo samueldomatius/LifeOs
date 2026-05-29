@@ -516,7 +516,7 @@ export default function App() {
             if (dbData.debts) setDebts(dbData.debts);
             if (dbData.history) setHistory(dbData.history);
             if (dbData.chatHistory) setChatHistory(dbData.chatHistory);
-            if (dbData.userProfile) setUserProfile(dbData.userProfile);
+            if (dbData.userProfile && Object.keys(dbData.userProfile).length > 0) setUserProfile(dbData.userProfile);
           }
         } catch (err) {
           console.error("Initial Prisma data pull failed:", err);
@@ -533,7 +533,7 @@ export default function App() {
             if (dbData.debts) setDebts(dbData.debts);
             if (dbData.history) setHistory(dbData.history);
             if (dbData.chat_history) setChatHistory(dbData.chat_history);
-            if (dbData.user_profile) setUserProfile(dbData.user_profile);
+            if (dbData.user_profile && Object.keys(dbData.user_profile).length > 0) setUserProfile(dbData.user_profile);
           }
         } catch (err) {
           console.error("Initial Supabase data pull failed:", err);
@@ -661,6 +661,7 @@ export default function App() {
 
   // Dynamic AI daily summary generator
   useEffect(() => {
+    if (dbLoading) return;
     let active = true;
     const fetchSummary = async () => {
       try {
@@ -674,7 +675,7 @@ export default function App() {
     };
     fetchSummary();
     return () => { active = false; };
-  }, [selectedDate, currentDay, tasks, finances]);
+  }, [selectedDate, dbLoading]);
 
   useEffect(() => {
     if (selectedDayIndex !== null && selectedDayIndex >= 0 && selectedDayIndex < history.length) {
@@ -751,6 +752,7 @@ export default function App() {
   }, [timerRunning]);
 
   useEffect(() => {
+    if (dbLoading) return;
     let active = true;
     const fetchExplanation = async () => {
       try {
@@ -767,7 +769,7 @@ export default function App() {
     };
     fetchExplanation();
     return () => { active = false; };
-  }, [selectedDate, finalScore, breakdown, currentDay, tasks, finances]);
+  }, [selectedDate, dbLoading]);
   
   const insightsList = generatePatternInsights(history);
 
@@ -973,6 +975,31 @@ export default function App() {
 
   const handleDeleteGoal = (id) => {
     setGoals(prev => prev.filter(g => g.id !== id));
+  };
+
+  const handleUpdateProfile = (newProfile) => {
+    setUserProfile(newProfile);
+    try {
+      localStorage.setItem('lifeos_user_profile', JSON.stringify(newProfile));
+    } catch (e) {}
+
+    // Instant database sync for profile changes to prevent overwrite by initDb
+    const statePayload = {
+      tasks,
+      finances,
+      currentDay,
+      assets,
+      savings,
+      debts,
+      history,
+      chatHistory,
+      userProfile: newProfile
+    };
+    if (isPrismaActive) {
+      pushUserDataPrisma(statePayload, userId).catch(err => console.warn("Prisma profile save failed:", err));
+    } else if (isSupabaseConfigured()) {
+      pushUserData(statePayload, userId).catch(err => console.warn("Supabase profile save failed:", err));
+    }
   };
 
   const handleResetAllData = () => {
@@ -1870,7 +1897,7 @@ export default function App() {
       {activeScreen === 'profile' && (
         <ProfileManager 
           userProfile={userProfile}
-          onUpdateProfile={setUserProfile}
+          onUpdateProfile={handleUpdateProfile}
           tasks={tasks}
           streakCount={streakCount}
           isStreakActive={isStreakActive}

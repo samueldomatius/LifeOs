@@ -13,46 +13,71 @@ export default function GrowthGarden({ tasks = [], savings = [], currentDay = {}
   const stravaPoints = Math.floor(steps / 100); // 1 point per 100 steps from Strava activity
   const totalPoints = taskPoints + savingsPoints + stravaPoints;
 
-  // Determine stage
-  let stage = 0; // Seed
-  let stageName = 'Biji Harapan (Seed)';
-  let stageDesc = 'Selesaikan tugas dan menabunglah untuk melihat biji ini tumbuh! 🌱';
+  // Determine stage and level
+  const levelThresholds = [
+    { level: 1, points: 0, stage: 0, name: 'Biji Harapan (Seed) 🌱', desc: 'Selesaikan tugas dan menabunglah untuk melihat biji ini tumbuh!' },
+    { level: 2, points: 50, stage: 1, name: 'Pecah Biji (Germinating Seed) 🌱', desc: 'Biji impianmu mulai pecah dan menunjukkan kehidupan pertama!' },
+    { level: 3, points: 150, stage: 1, name: 'Tunas Awal (Sprout) 🌱', desc: 'Tunas kecil mulai meninggi mencari cahaya kesuksesan!' },
+    { level: 4, points: 300, stage: 1, name: 'Kecambah Besar (Big Seedling) 🌱', desc: 'Tunas kecil mulai tumbuh meninggi!' },
+    { level: 5, points: 500, stage: 2, name: 'Tunas Hijau Mandiri (Young Sprout) 🌿', desc: 'Batang kecil mulai berakar kokoh.' },
+    { level: 6, points: 750, stage: 2, name: 'Batang Muda (Young Sapling) 🌿', desc: 'Akar makin kuat, daun makin lebat. Hidupmu makin teratur!' },
+    { level: 7, points: 1050, stage: 2, name: 'Tanaman Muda Rimbun 🌿', desc: 'Daun-daun kecil mulai menghijau lebat!' },
+    { level: 8, points: 1400, stage: 3, name: 'Pohon Muda Matang (Mature Sapling) 🌿', desc: 'Wah, daun-daun baru bermunculan seiring tabungan & tugasmu selesai!' },
+    { level: 9, points: 1800, stage: 3, name: 'Pohon Muda Berbunga (Budding Sapling) 🌸', desc: 'Kuncup-kuncup bunga kecil mulai terlihat menghiasi batang!' },
+    { level: 10, points: 2250, stage: 3, name: 'Pohon Berbunga (Flowering Tree) 🌸', desc: 'Indah sekali! Kuncup-kuncup bunga kedisiplinan mulai bermekaran!' },
+    { level: 11, points: 2750, stage: 3, name: 'Pohon Berbunga Lebat 🌸', desc: 'Aroma kesuksesan mulai tercium dari kebun disiplinmu!' },
+    { level: 12, points: 3300, stage: 4, name: 'Pohon Berbuah Muda 🍎', desc: 'Buah-buah kecil mulai nampak di ranting pohonmu!' },
+    { level: 13, points: 3900, stage: 4, name: 'Pohon Berbuah Lebat (Fruiting Tree) 🍎', desc: 'Keren abis! Kerja kerasmu mulai membuahkan hasil finansial & produktivitas!' },
+    { level: 14, points: 4550, stage: 4, name: 'Pohon Rindang Kemakmuran (Majestic Tree) 🌳', desc: 'Keren abis! Hidupmu sangat produktif & finansialmu makin kokoh!' },
+    { level: 15, points: 5250, stage: 4, name: 'Pohon Rindang Kokoh 🌳', desc: 'Pohonmu menaungi hari-hari sibukmu dengan keteduhan.' },
+    { level: 16, points: 6000, stage: 4, name: 'Pohon Rindang Legendaris 🌳', desc: 'Keberhasilanmu menjadi buah bibir di kebun finansial.' },
+    { level: 17, points: 6850, stage: 4, name: 'Pohon Rindang Emas Pemula 🌳', desc: 'Daun-daun mulai memancarkan kilau keemasan.' },
+    { level: 18, points: 7750, stage: 4, name: 'Pohon Rindang Emas Muda 🌳', desc: 'Setengah bagian pohonmu telah berkilau emas!' },
+    { level: 19, points: 8700, stage: 5, name: 'Pohon Emas Bertunas Baru 🌟', desc: 'Luar biasa! Kilau emas mulai mendominasi seluruh pohon!' },
+    { level: 20, points: 9700, stage: 5, name: 'Pohon Emas Bersemi 🌟', desc: 'Kekayaan dan kedisiplinanmu menyatu dalam keindahan emas!' },
+    { level: 21, points: 10750, stage: 5, name: 'Pohon Emas Matang 🌟', desc: 'Pohon emas berkilau indah di bawah sinar matahari!' },
+    { level: 22, points: 11850, stage: 5, name: 'Pohon Emas Berbunga Perak 🌟', desc: 'Kombinasi emas dan bunga perak yang sangat langka!' },
+    { level: 23, points: 13000, stage: 5, name: 'Pohon Emas Berbunga Emas 🌟', desc: 'Bunga-bunga emas mulai bermekaran dengan anggun!' },
+    { level: 24, points: 14200, stage: 5, name: 'Pohon Emas Berbuah Kristal 🌟', desc: 'Buah kristal berkilauan melambangkan kekayaan abadi!' },
+    { level: 25, points: 15450, stage: 5, name: 'Pohon Emas Berbuah Permata 🌟', desc: 'Buah permata indah siap dipetik hasil kerja kerasmu!' },
+    { level: 26, points: 16750, stage: 5, name: 'Pohon Dewata Kemakmuran 🌟', desc: 'Energi positif mengalir deras ke seluruh penjuru kebun!' },
+    { level: 27, points: 18100, stage: 5, name: 'Pohon Dewata Emas Abadi 🌟', desc: 'Keabadian kesuksesan finansial dan produktivitas terwujud!' },
+    { level: 28, points: 19500, stage: 5, name: 'Pohon Kosmik Kemakmuran 🌟', desc: 'Melampaui batas bumi, kesuksesanmu memancar ke angkasa!' },
+    { level: 29, points: 21000, stage: 5, name: 'Pohon Kosmik Emas Legendaris 🌟', desc: 'Selangkah lagi menuju puncak kedisiplinan tertinggi!' },
+    { level: 30, points: 22600, stage: 5, name: 'Pohon Mahkota Dewa Emas (Ultimate Golden Tree) 🌟', desc: 'PUNCAK KESUKSESAN! Anda telah mencapai level maksimal kebun kehidupan! Sungguh luar biasa!' },
+  ];
+
+  let stage = 0;
+  let stageName = '';
+  let stageDesc = '';
   let level = 1;
   let nextLevelPoints = 50;
+  let prevLevelPoints = 0;
 
-  if (totalPoints >= 1200) {
-    stage = 5;
-    level = 6;
-    stageName = 'Pohon Emas Legendaris (Golden Tree) 🌟';
-    stageDesc = 'Luar biasa! Kedisiplinanmu menciptakan pohon kemakmuran emas!';
-    nextLevelPoints = 999999;
-  } else if (totalPoints >= 600) {
-    stage = 4;
-    level = 5;
-    stageName = 'Pohon Rindang (Mature Tree) 🌳';
-    stageDesc = 'Keren abis! Hidupmu sangat produktif & finansialmu makin kokoh!';
-    nextLevelPoints = 1200;
-  } else if (totalPoints >= 250) {
-    stage = 3;
-    level = 4;
-    stageName = 'Pohon Muda (Sapling) 🌿';
-    stageDesc = 'Wah, daun-daun baru bermunculan seiring tabungan & tugasmu selesai!';
-    nextLevelPoints = 600;
-  } else if (totalPoints >= 100) {
-    stage = 2;
-    level = 3;
-    stageName = 'Tunas Hijau (Sprout)';
-    stageDesc = 'Tunas kecil mulai meninggi mencari cahaya kesuksesan!';
-    nextLevelPoints = 250;
-  } else if (totalPoints >= 30) {
-    stage = 1;
-    level = 2;
-    stageName = 'Kecambah (Seedling) 🌱';
-    stageDesc = 'Biji impianmu mulai pecah dan menunjukkan kehidupan pertama!';
-    nextLevelPoints = 100;
+  // Find the current level based on totalPoints
+  let currentLevelIdx = 0;
+  for (let i = 0; i < levelThresholds.length; i++) {
+    if (totalPoints >= levelThresholds[i].points) {
+      currentLevelIdx = i;
+    } else {
+      break;
+    }
   }
 
-  const progressPercent = Math.min(100, Math.round(((totalPoints - (stage === 0 ? 0 : stage === 1 ? 30 : stage === 2 ? 100 : stage === 3 ? 250 : 600)) / (nextLevelPoints - (stage === 0 ? 0 : stage === 1 ? 30 : stage === 2 ? 100 : stage === 3 ? 250 : 600))) * 100));
+  const currentLevelConfig = levelThresholds[currentLevelIdx];
+  level = currentLevelConfig.level;
+  stage = currentLevelConfig.stage;
+  stageName = currentLevelConfig.name;
+  stageDesc = currentLevelConfig.desc;
+  prevLevelPoints = currentLevelConfig.points;
+
+  if (currentLevelIdx < levelThresholds.length - 1) {
+    nextLevelPoints = levelThresholds[currentLevelIdx + 1].points;
+  } else {
+    nextLevelPoints = prevLevelPoints + 2000; // infinite level progression representation
+  }
+
+  const progressPercent = Math.min(100, Math.round(((totalPoints - prevLevelPoints) / (nextLevelPoints - prevLevelPoints)) * 100));
 
   // Render SVG based on stage
   const renderPlantSVG = () => {
