@@ -9,7 +9,9 @@ generator client {
 }
 
 model UserData {
-  id          String   @id @default("default")
+  id          String   @id
+  email       String?  @unique
+  password    String?
   updatedAt   DateTime @updatedAt
   tasks       Json     @default("[]")
   finances    Json     @default("[]")

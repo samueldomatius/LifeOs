@@ -10,7 +10,8 @@ export default function ProfileManager({
   selectedDate,
   onUpdateTask,
   onDeleteTask,
-  onResetAllData
+  onResetAllData,
+  onLogout
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(userProfile.name);
@@ -293,6 +294,33 @@ export default function ProfileManager({
             ))}
           </div>
         </div>
+
+        {/* Logout Button */}
+        <button
+          type="button"
+          onClick={() => {
+            if (confirm('Apakah Anda yakin ingin keluar dari akun?')) {
+              onLogout();
+            }
+          }}
+          className="primary-btn animate-hover"
+          style={{
+            marginTop: '0.25rem',
+            padding: '10px',
+            fontSize: '0.75rem',
+            fontWeight: 'bold',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid var(--accent-coral)',
+            color: 'var(--accent-coral)',
+            borderRadius: '14px',
+            cursor: 'pointer',
+            textAlign: 'center',
+            width: '100%',
+            transition: 'all 0.25s'
+          }}
+        >
+          🚪 Keluar Dari Akun (Logout)
+        </button>
 
       </div>
     </div>

@@ -32,6 +32,7 @@ import AssetsManager from './components/AssetsManager';
 import GoalsManager from './components/GoalsManager';
 import ProfileManager from './components/ProfileManager';
 import GrowthGarden from './components/GrowthGarden';
+import AuthScreen from './components/AuthScreen';
 import { startFocusSound, stopFocusSound } from './utils/focusSynth';
 import { isSupabaseConfigured, pullUserData, pushUserData } from './utils/supabaseClient';
 import { checkPrismaReachable, pullUserDataPrisma, pushUserDataPrisma } from './utils/prismaClient';
@@ -110,17 +111,20 @@ const formatMarkdownToHtml = (text) => {
 };
 
 export default function App() {
-  // --- Dynamic Multi-User Session ID ---
-  const [userId] = useState(() => {
+  // --- Dynamic Multi-User Session ID & Email ---
+  const [userId, setUserId] = useState(() => {
     try {
-      let id = localStorage.getItem('lifeos_user_id');
-      if (!id) {
-        id = `user_${Math.random().toString(36).substring(2, 11)}_${Date.now().toString(36)}`;
-        localStorage.setItem('lifeos_user_id', id);
-      }
-      return id;
+      return localStorage.getItem('lifeos_user_id') || '';
     } catch (e) {
-      return 'default';
+      return '';
+    }
+  });
+
+  const [userEmail, setUserEmail] = useState(() => {
+    try {
+      return localStorage.getItem('lifeos_user_email') || '';
+    } catch (e) {
+      return '';
     }
   });
 
@@ -230,14 +234,26 @@ export default function App() {
   const [selectedDayIndex, setSelectedDayIndex] = useState(null);
 
   const [currentDay, setCurrentDay] = useState(() => {
+    const todayStr = (() => {
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = (d.getMonth() + 1).toString().padStart(2, '0');
+      const day = d.getDate().toString().padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    })();
+
     try {
       const saved = localStorage.getItem('lifeos_current_day');
       if (saved && saved !== 'undefined') {
         const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object' && parsed.sleepHours !== undefined) return parsed;
+        if (parsed && typeof parsed === 'object' && parsed.sleepHours !== undefined) {
+          if (parsed.date === todayStr) {
+            return parsed;
+          }
+        }
       }
     } catch(e) {}
-    return INITIAL_CURRENT_DAY;
+    return { ...INITIAL_CURRENT_DAY, date: todayStr };
   });
 
   const [tasks, setTasks] = useState(() => {
@@ -322,6 +338,51 @@ export default function App() {
     });
   }, [activeScreen]);
 
+  // Browser History Navigation (Back Button Support)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '') || 'dashboard';
+      if (hash === 'chat') {
+        setAiChatOpen(true);
+      } else {
+        setAiChatOpen(false);
+        const validScreens = ['dashboard', 'tasks', 'finance', 'assets', 'goals', 'habits', 'insights', 'profile'];
+        if (validScreens.includes(hash)) {
+          setActiveScreen(hash);
+        }
+      }
+    };
+
+    // Check initial hash
+    const initialHash = window.location.hash.replace('#', '');
+    if (initialHash === 'chat') {
+      setAiChatOpen(true);
+    } else if (initialHash) {
+      const validScreens = ['dashboard', 'tasks', 'finance', 'assets', 'goals', 'habits', 'insights', 'profile'];
+      if (validScreens.includes(initialHash)) {
+        setActiveScreen(initialHash);
+      }
+    }
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Update hash based on screen / chat states
+  useEffect(() => {
+    const currentHash = window.location.hash.replace('#', '');
+    if (aiChatOpen) {
+      if (currentHash !== 'chat') {
+        window.location.hash = 'chat';
+      }
+    } else {
+      const targetHash = activeScreen === 'dashboard' ? '' : activeScreen;
+      if (currentHash !== targetHash && currentHash !== 'chat') {
+        window.location.hash = targetHash;
+      }
+    }
+  }, [activeScreen, aiChatOpen]);
+
   useEffect(() => {
     setTaskDate(selectedDate);
   }, [selectedDate]);
@@ -375,9 +436,40 @@ export default function App() {
     checkReminders();
 
     const clockTimer = setInterval(() => {
-      setCurrentTimeState(new Date());
+      const now = new Date();
+      setCurrentTimeState(now);
       checkReminders();
-    }, 30000);
+
+      // Auto-update date and values at midnight / date change
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, '0');
+      const day = now.getDate().toString().padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
+
+      setSelectedDate(prevDate => {
+        if (prevDate !== todayStr) {
+          // Date has rolled over!
+          // We must update the active selected date to todayStr.
+          setCurrentDay(prevDay => {
+            if (prevDay.date !== todayStr) {
+              // Return new blank slate
+              return {
+                sleepHours: 7,
+                sleepQuality: 'good',
+                steps: 0,
+                workoutMinutes: 0,
+                waterIntake: 0,
+                directMood: 'neutral',
+                date: todayStr
+              };
+            }
+            return prevDay;
+          });
+          return todayStr;
+        }
+        return prevDate;
+      });
+    }, 10000);
     
     return () => clearInterval(clockTimer);
   }, [tasks]);
@@ -500,6 +592,11 @@ export default function App() {
 
   // Database Pull on Mount (Prisma priority -> Supabase -> LocalStorage)
   useEffect(() => {
+    if (!userId) {
+      setDbLoading(false);
+      return;
+    }
+    setDbLoading(true);
     const initDb = async () => {
       const prismaReachable = await checkPrismaReachable();
       
@@ -1352,11 +1449,58 @@ export default function App() {
     });
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('lifeos_user_id');
+    localStorage.removeItem('lifeos_user_email');
+    setUserId('');
+    setUserEmail('');
+    setTasks([]);
+    setFinances([]);
+    setCurrentDay({
+      sleepHours: 7,
+      sleepQuality: 'good',
+      steps: 0,
+      workoutMinutes: 0,
+      waterIntake: 0,
+      directMood: 'neutral',
+      date: ''
+    });
+    setAssets([]);
+    setSavings([]);
+    setDebts([]);
+    setHistory([]);
+    setChatHistory([
+      {
+        id: 'msg_welcome',
+        sender: 'ai',
+        text: 'Halo! Aku **LifeOS AI Core**, sekretaris pribadi berbasis AI-mu. 🌌\n\nAda yang mau kamu ceritakan tentang mood, aktivitas, atau rencana jajanmu hari ini? Ketik saja, biar aku log dan selaraskan jadwalmu otomatis!',
+        timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+    setUserProfile({
+      name: 'User LifeOS',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150&h=150',
+      bio: 'Mengelola hidup lebih teratur dengan LifeOS ✨'
+    });
+    setActiveScreen('dashboard');
+    window.location.hash = '';
+  };
+
   const toggleTimer = () => setTimerRunning(!timerRunning);
   const resetTimer = () => {
     setTimerRunning(false);
     setTimerTime(1500);
   };
+
+  if (!userId || !userEmail) {
+    return (
+      <div className={`app-viewport theme-transition ${theme}`}>
+        <div className="phone-screen theme-transition" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '2rem' }}>
+          <AuthScreen setUserId={setUserId} setUserEmail={setUserEmail} theme={theme} toggleTheme={toggleTheme} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`app-viewport theme-transition ${theme}`}>
@@ -1907,6 +2051,7 @@ export default function App() {
           onUpdateTask={handleUpdateTask}
           onDeleteTask={handleDeleteTask}
           onResetAllData={handleResetAllData}
+          onLogout={handleLogout}
         />
       )}
 

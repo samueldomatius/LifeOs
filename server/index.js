@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import crypto from 'crypto';
 
 dotenv.config();
 
@@ -92,6 +93,88 @@ app.post('/api/userdata/:userId?', async (req, res) => {
   } catch (error) {
     console.error("Error upserting user data via Prisma:", error);
     res.status(500).json({ error: "Failed to save user data", message: error.message });
+  }
+});
+
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+// POST /api/auth/register
+app.post('/api/auth/register', async (req, res) => {
+  const { email, password, name } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
+  try {
+    const normalizedEmail = email.toLowerCase().trim();
+    const existingUser = await prisma.userData.findFirst({
+      where: { email: normalizedEmail }
+    });
+    if (existingUser) {
+      return res.status(400).json({ error: "Email already registered" });
+    }
+
+    const userId = 'user_' + Math.random().toString(36).substring(2, 15);
+    const hashedPassword = hashPassword(password);
+
+    const data = await prisma.userData.create({
+      data: {
+        id: userId,
+        email: normalizedEmail,
+        password: hashedPassword,
+        tasks: [],
+        finances: [],
+        currentDay: {},
+        assets: [],
+        savings: [],
+        debts: [],
+        history: [],
+        chatHistory: [],
+        userProfile: {
+          name: name || 'User LifeOS',
+          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150&h=150',
+          bio: 'Mengelola hidup lebih teratur dengan LifeOS ✨'
+        }
+      }
+    });
+
+    res.json({ success: true, userId, email: normalizedEmail, name: data.userProfile.name });
+  } catch (error) {
+    console.error("Registration error:", error);
+    res.status(500).json({ error: "Failed to register user", message: error.message });
+  }
+});
+
+// POST /api/auth/login
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
+  try {
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await prisma.userData.findFirst({
+      where: { email: normalizedEmail }
+    });
+    if (!user) {
+      return res.status(400).json({ error: "Email not found" });
+    }
+
+    const hashedPassword = hashPassword(password);
+    if (user.password !== hashedPassword) {
+      return res.status(400).json({ error: "Invalid password" });
+    }
+
+    res.json({
+      success: true,
+      userId: user.id,
+      email: user.email,
+      name: (user.userProfile && user.userProfile.name) || 'User LifeOS'
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ error: "Failed to login", message: error.message });
   }
 });
 
