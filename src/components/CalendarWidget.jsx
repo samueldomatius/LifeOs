@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function CalendarWidget({ history, selectedDate, tasks, handleSelectCalendarDay }) {
+export default function CalendarWidget({ history, selectedDate, tasks, finances = [], handleSelectCalendarDay }) {
   // Parse month and year from selectedDate, fallback to current local date
   const [currentMonth, setCurrentMonth] = useState(() => {
     const parts = selectedDate.split('-');
@@ -125,6 +125,76 @@ export default function CalendarWidget({ history, selectedDate, tasks, handleSel
         })}
 
       </div>
+
+      {/* Small selected date tasks & transactions summary pop-up inside calendar */}
+      {(() => {
+        const selectedDayTasks = tasks.filter(t => t.dueDate === selectedDate);
+        const selectedDayFinances = finances.filter(f => f.date === selectedDate);
+        if (selectedDayTasks.length === 0 && selectedDayFinances.length === 0) return null;
+        
+        const completedCount = selectedDayTasks.filter(t => t.status === 'completed').length;
+        const pendingCount = selectedDayTasks.filter(t => t.status === 'pending').length;
+        
+        const totalIncome = selectedDayFinances.filter(f => f.type === 'income').reduce((sum, f) => sum + f.amount, 0);
+        const totalExpense = selectedDayFinances.filter(f => f.type === 'expense').reduce((sum, f) => sum + f.amount, 0);
+        
+        const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+        const dayName = dayNames[new Date(selectedDate).getDay()] || "Hari Ini";
+        
+        return (
+          <div style={{
+            marginTop: '0.85rem',
+            background: 'rgba(255, 255, 255, 0.02)',
+            border: '1px solid rgba(255, 255, 255, 0.06)',
+            borderRadius: '14px',
+            padding: '10px 12px',
+            fontSize: '0.7rem',
+            animation: 'scalePopIn 0.25s ease-out'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: '#fff', marginBottom: '6px' }}>
+              <span>📝 Ringkasan Hari ({dayName}):</span>
+              <span style={{ color: 'var(--accent-volt)' }}>
+                {completedCount} Selesai | {pendingCount} Pending
+              </span>
+            </div>
+
+            {selectedDayTasks.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '70px', overflowY: 'auto', paddingRight: '4px', marginBottom: selectedDayFinances.length > 0 ? '8px' : '0' }}>
+                {selectedDayTasks.map(t => (
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: t.status === 'completed' ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+                    <span style={{ color: t.status === 'completed' ? 'var(--accent-volt)' : 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1 }}>•</span>
+                    <span style={{ textDecoration: t.status === 'completed' ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t.text}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {selectedDayFinances.length > 0 && (
+              <div style={{ borderTop: selectedDayTasks.length > 0 ? '1px dashed rgba(255, 255, 255, 0.06)' : 'none', paddingTop: selectedDayTasks.length > 0 ? '6px' : '0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: 'bold', fontSize: '0.65rem' }}>
+                  <span>💰 Transaksi Keuangan:</span>
+                  <span>
+                    {totalIncome > 0 && <span style={{ color: 'var(--accent-volt)', marginRight: '6px' }}>+{totalIncome.toLocaleString('id-ID')}</span>}
+                    {totalExpense > 0 && <span style={{ color: 'var(--accent-coral)' }}>-{totalExpense.toLocaleString('id-ID')}</span>}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxHeight: '60px', overflowY: 'auto', paddingRight: '4px', fontSize: '0.65rem' }}>
+                  {selectedDayFinances.map(f => (
+                    <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-primary)' }}>
+                      <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '65%' }}>{f.description}</span>
+                      <span style={{ color: f.type === 'income' ? 'var(--accent-volt)' : 'var(--accent-coral)' }}>
+                        {f.type === 'income' ? '+' : '-'}Rp {f.amount.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </section>
   );
 }

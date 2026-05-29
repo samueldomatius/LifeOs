@@ -474,6 +474,19 @@ export default function FinanceManager({
             </form>
 
             {/* List all transactions */}
+            <div className="section-label-row" style={{ marginTop: '0.75rem', marginBottom: '0.25rem' }}>
+              <span className="section-title-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                💵 RIWAYAT TRANSAKSI ({formatDateHeader(selectedDate)})
+              </span>
+            </div>
+
+            {filteredFinances.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0.75rem', background: 'rgba(0,0,0,0.15)', borderRadius: '12px', fontSize: '0.68rem', marginBottom: '0.25rem' }}>
+                <span style={{ color: 'var(--accent-volt)' }}>Total Pemasukan: Rp {filteredFinances.filter(f => f.type === 'income').reduce((sum, f) => sum + f.amount, 0).toLocaleString('id-ID')}</span>
+                <span style={{ color: 'var(--accent-coral)' }}>Total Pengeluaran: Rp {filteredFinances.filter(f => f.type === 'expense').reduce((sum, f) => sum + f.amount, 0).toLocaleString('id-ID')}</span>
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {filteredFinances.map(f => {
                 const isEditing = editingTxnId === f.id;
@@ -553,6 +566,47 @@ export default function FinanceManager({
                   </div>
                 );
               })}
+            </div>
+
+            {/* Dedicated Finance Tracking History */}
+            <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '1rem 0' }} />
+            
+            <div className="glass-panel volt-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '1rem' }}>📈</span>
+                <strong style={{ fontSize: '0.75rem', color: 'var(--accent-volt)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tracking & Riwayat Transaksi Seluruh Tanggal</strong>
+              </div>
+              <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: 0 }}>
+                Daftar lengkap semua transaksi yang pernah dicatat untuk memudahkan tracking pengeluaran & pemasukan.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '200px', overflowY: 'auto', paddingRight: '4px' }}>
+                {(() => {
+                  const allTxnsSorted = [...(finances || [])].sort((a, b) => b.date.localeCompare(a.date));
+                  if (allTxnsSorted.length === 0) {
+                    return <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0, fontStyle: 'italic' }}>Belum ada data transaksi sama sekali.</p>;
+                  }
+                  return allTxnsSorted.map(f => {
+                    const isExpense = f.type === 'expense';
+                    return (
+                      <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', padding: '0.45rem 0.65rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)', fontSize: '0.7rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#fff', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>{f.description}</span>
+                          <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                            {f.category} • {formatDateHeader(f.date)}
+                          </span>
+                        </div>
+                        <span style={{
+                          fontWeight: 'bold',
+                          color: isExpense ? 'var(--accent-coral)' : 'var(--accent-volt)',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {isExpense ? "-" : "+"} Rp {f.amount.toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
             </div>
           </>
         )}

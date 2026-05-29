@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Clock, ExternalLink, Trash2, Edit2 } from 'lucide-react';
 //twst
 export default function TasksManager({ 
+  tasks = [],
   filteredTasks, 
   selectedDate, 
   taskText, 
@@ -228,6 +229,11 @@ export default function TasksManager({
       </div>
 
       {/* List filtered Tasks */}
+      <div className="section-label-row" style={{ marginTop: '0.5rem', marginBottom: '0.25rem' }}>
+        <span className="section-title-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+          📋 DAFTAR & RIWAYAT TUGAS ({formatDateHeader(selectedDate)})
+        </span>
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', overflowY: 'auto', flex: 1, maxHeight: '250px' }}>
         {filteredTasks.map(t => {
           const isEditing = editingTaskId === t.id;
@@ -448,6 +454,72 @@ export default function TasksManager({
           )}
         </div>
       )}
+
+      {/* Dedicated Tasks Tracking History */}
+      <div className="glass-panel volt-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '1rem' }}>📈</span>
+          <strong style={{ fontSize: '0.75rem', color: 'var(--accent-volt)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tracking & Riwayat Tugas Seluruh Tanggal</strong>
+        </div>
+        <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: 0 }}>
+          Daftar riwayat semua tugas yang pernah dibuat beserta tanggal dan status penyelesaiannya.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
+          {(() => {
+            const allTasksSorted = [...(tasks || [])].sort((a, b) => b.dueDate.localeCompare(a.dueDate));
+            if (allTasksSorted.length === 0) {
+              return <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0, fontStyle: 'italic' }}>Belum ada data tugas sama sekali.</p>;
+            }
+            return allTasksSorted.map(t => {
+              const isCompleted = t.status === 'completed';
+              return (
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.02)', padding: '0.45rem 0.65rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                  <div style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '3px',
+                    border: isCompleted ? 'none' : '1px solid var(--text-muted)',
+                    background: isCompleted ? 'var(--accent-volt)' : 'transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#000',
+                    fontSize: '0.48rem',
+                    fontWeight: 'bold'
+                  }}>
+                    {isCompleted && "✓"}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                    <span style={{
+                      fontSize: '0.72rem',
+                      color: isCompleted ? 'var(--text-muted)' : '#fff',
+                      textDecoration: isCompleted ? 'line-through' : 'none',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden'
+                    }}>
+                      {t.text}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                      Tanggal: {formatDateHeader(t.dueDate)} {t.time && `| Waktu: ${t.time}`}
+                    </span>
+                  </div>
+                  <span style={{
+                    fontSize: '0.52rem',
+                    fontWeight: 'bold',
+                    padding: '1px 5px',
+                    borderRadius: '5px',
+                    background: t.priority === 'high' ? 'rgba(255, 71, 126, 0.15)' : t.priority === 'medium' ? 'rgba(251, 191, 36, 0.1)' : 'rgba(255,255,255,0.05)',
+                    color: t.priority === 'high' ? 'var(--accent-coral)' : t.priority === 'medium' ? 'var(--accent-orange)' : 'var(--text-muted)'
+                  }}>
+                    {t.priority?.toUpperCase()}
+                  </span>
+                </div>
+              );
+            });
+          })()}
+        </div>
+      </div>
     </div>
   );
 }

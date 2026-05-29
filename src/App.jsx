@@ -1613,6 +1613,7 @@ export default function App() {
           history={history}
           selectedDate={selectedDate}
           tasks={tasks}
+          finances={finances}
           handleSelectCalendarDay={handleSelectCalendarDay}
         />
 
@@ -1784,6 +1785,7 @@ export default function App() {
       {/* Overlays Panels */}
       {activeScreen === 'tasks' && (
         <TasksManager 
+          tasks={tasks}
           filteredTasks={filteredTasks}
           selectedDate={selectedDate}
           taskText={taskText}
