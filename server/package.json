@@ -1,0 +1,21 @@
+{
+  "name": "lifeos-backend",
+  "version": "1.0.0",
+  "description": "Prisma server backend for LifeOS API client synchronization",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node index.js",
+    "prisma:setup": "npx prisma migrate dev --name init",
+    "prisma:generate": "npx prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.4.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "prisma": "^6.4.0"
+  }
+}

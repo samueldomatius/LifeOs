@@ -11,6 +11,7 @@ import {
   X,
   Clock,
   ArrowDownRight,
+  ArrowUpRight,
   Sparkles,
   CreditCard,
   Target,
@@ -30,7 +31,10 @@ import AiChatCompanion from './components/AiChatCompanion';
 import AssetsManager from './components/AssetsManager';
 import GoalsManager from './components/GoalsManager';
 import ProfileManager from './components/ProfileManager';
+import GrowthGarden from './components/GrowthGarden';
 import { startFocusSound, stopFocusSound } from './utils/focusSynth';
+import { isSupabaseConfigured, pullUserData, pushUserData } from './utils/supabaseClient';
+import { checkPrismaReachable, pullUserDataPrisma, pushUserDataPrisma } from './utils/prismaClient';
 
 import { 
   calculateLifeScore, 
@@ -43,37 +47,20 @@ import {
 } from './utils/aiEngine';
 
 // Default tasks mapped to March 2026 dates (matching calendar)
-const INITIAL_TASKS = [
-  { id: 't1', text: '🔥 Pitch Pitch Deck LifeOS (Tugas Berat)', priority: 'high', tag: 'Productivity', status: 'pending', snoozeCount: 0, dueDate: '2026-03-27', time: '09:30', link: 'https://meet.google.com/abc-defg-hij' },
-  { id: 't2', text: '🏃 Jogging Sore & Workout 45 menit', priority: 'medium', tag: 'Health', status: 'pending', snoozeCount: 0, dueDate: '2026-03-27', time: '16:00', link: '' },
-  { id: 't3', text: '💵 Catat Tagihan ShopeePayLater', priority: 'low', tag: 'Finance', status: 'pending', snoozeCount: 0, dueDate: '2026-03-27', time: '20:00', link: 'https://shopee.co.id' },
-  { id: 't4', text: '📚 Membaca Paper AI Lintas Dimensi', priority: 'medium', tag: 'Growth', status: 'completed', snoozeCount: 0, dueDate: '2026-03-26', time: '14:00', link: 'https://arxiv.org' },
-  // March 16 (Poor sleep mock tasks)
-  { id: 't5', text: '🔥 Selesaikan Desain Pitch deck (Snoozed)', priority: 'high', tag: 'Productivity', status: 'snoozed', snoozeCount: 4, dueDate: '2026-03-16', time: '10:00', link: '' },
-  { id: 't6', text: '🏃 Jogging Kardio 30 menit (Batal)', priority: 'medium', tag: 'Health', status: 'snoozed', snoozeCount: 3, dueDate: '2026-03-16', time: '17:00', link: '' },
-  // March 23 (Peak day mock tasks)
-  { id: 't7', text: '🔥 Final Coding React PWA', priority: 'high', tag: 'Productivity', status: 'completed', snoozeCount: 0, dueDate: '2026-03-23', time: '09:00', link: 'http://localhost:5173' },
-  { id: 't8', text: '💪 Angkat Beban 45 Menit di Gym', priority: 'medium', tag: 'Health', status: 'completed', snoozeCount: 0, dueDate: '2026-03-23', time: '16:30', link: '' },
-  { id: 't9', text: '💵 Setor Pemasukan Freelance', priority: 'medium', tag: 'Finance', status: 'completed', snoozeCount: 0, dueDate: '2026-03-23', time: '11:00', link: '' }
-];
+const INITIAL_TASKS = [];
 
 // Preloaded finances mapped to dates
-const INITIAL_FINANCES = [
-  { id: 'f1', type: 'expense', amount: 25000, category: 'Caffeine/Food', description: 'Es Kopi Tuku', timestamp: '14:20', date: '2026-03-27' },
-  { id: 'f2', type: 'expense', amount: 15000, category: 'Caffeine/Food', description: 'Rujak Buah Segar', timestamp: '11:00', date: '2026-03-27' },
-  { id: 'f3', type: 'income', amount: 500000, category: 'Freelance', description: 'Fee Review Desain UI', timestamp: '09:00', date: '2026-03-27' },
-  { id: 'f4', type: 'expense', amount: 350000, category: 'Impulse/Lifestyle', description: 'Caffeine Rush & Fast Food Comfort', timestamp: '15:20', date: '2026-03-16' }
-];
+const INITIAL_FINANCES = [];
 
 // Base initial fallback context parameters
 const INITIAL_CURRENT_DAY = {
-  sleepHours: 8.2,
+  sleepHours: 7,
   sleepQuality: 'good',
-  steps: 6400,
-  workoutMinutes: 45,
-  waterIntake: 2200,
-  directMood: 'good',
-  date: '2026-03-27'
+  steps: 0,
+  workoutMinutes: 0,
+  waterIntake: 0,
+  directMood: 'neutral',
+  date: ''
 };
 
 const formatMarkdownToHtml = (text) => {
@@ -123,6 +110,20 @@ const formatMarkdownToHtml = (text) => {
 };
 
 export default function App() {
+  // --- Dynamic Multi-User Session ID ---
+  const [userId] = useState(() => {
+    try {
+      let id = localStorage.getItem('lifeos_user_id');
+      if (!id) {
+        id = `user_${Math.random().toString(36).substring(2, 11)}_${Date.now().toString(36)}`;
+        localStorage.setItem('lifeos_user_id', id);
+      }
+      return id;
+    } catch (e) {
+      return 'default';
+    }
+  });
+
   // --- State Stores ---
   const [theme, setTheme] = useState(() => {
     try {
@@ -144,12 +145,7 @@ export default function App() {
         }
       }
     } catch(e) {}
-    
-    const seeded = getSeededHistory();
-    return seeded.map((s, idx) => {
-      const dayNum = 14 + idx;
-      return { ...s, date: `2026-03-${dayNum.toString().padStart(2, '0')}` };
-    });
+    return [];
   });
 
   const [assets, setAssets] = useState(() => {
@@ -160,12 +156,7 @@ export default function App() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch(e) {}
-    return [
-      { id: 'gopay', name: 'GoPay', balance: 150000 },
-      { id: 'dana', name: 'Dana Wallet', balance: 75000 },
-      { id: 'bca', name: 'Bank BCA', balance: 1200000 },
-      { id: 'cash', name: 'Uang Tunai (Cash)', balance: 50000 }
-    ];
+    return [];
   });
 
   const [goals, setGoals] = useState(() => {
@@ -176,11 +167,7 @@ export default function App() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch(e) {}
-    return [
-      { id: 'goal_spend', name: 'Limit Belanja Harian', type: 'spend_cap', targetValue: 150000 },
-      { id: 'goal_steps', name: 'Target Langkah Kaki', type: 'steps', targetValue: 8000 },
-      { id: 'goal_tasks', name: 'Selesaikan Tugas Harian', type: 'tasks', targetValue: 3 }
-    ];
+    return [];
   });
 
   const [savings, setSavings] = useState(() => {
@@ -188,10 +175,7 @@ export default function App() {
       const saved = localStorage.getItem('lifeos_savings');
       if (saved && saved !== 'undefined') return JSON.parse(saved);
     } catch(e) {}
-    return [
-      { id: 's1', name: 'Tabungan Gadget Baru', currentAmount: 1200000, targetAmount: 5000000 },
-      { id: 's2', name: 'Dana Darurat', currentAmount: 3000000, targetAmount: 10000000 }
-    ];
+    return [];
   });
 
   const [debts, setDebts] = useState(() => {
@@ -199,10 +183,7 @@ export default function App() {
       const saved = localStorage.getItem('lifeos_debts');
       if (saved && saved !== 'undefined') return JSON.parse(saved);
     } catch(e) {}
-    return [
-      { id: 'd1', name: 'Shopee PayLater', amount: 350000, dueDate: '2026-03-31', paid: false },
-      { id: 'd2', name: 'Pinjam Teman (Rian)', amount: 150000, dueDate: '2026-04-10', paid: false }
-    ];
+    return [];
   });
 
   useEffect(() => {
@@ -223,9 +204,9 @@ export default function App() {
       if (saved && saved !== 'undefined') return JSON.parse(saved);
     } catch(e) {}
     return {
-      name: 'Anya Bestie',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150',
-      bio: 'Living my best life in 2026 💅✨'
+      name: 'User LifeOS',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150&h=150',
+      bio: 'Mengelola hidup lebih teratur dengan LifeOS ✨'
     };
   });
 
@@ -302,8 +283,8 @@ export default function App() {
       {
         id: 'msg_welcome',
         sender: 'ai',
-        text: 'Halo! Aku **LifeOS AI Core**, sekretaris pribadi berbasis AI-mu. 🌌\n\nAku mendeteksi tidurmu semalam cukup baik (**8.2 jam, Kualitas: Baik**). Kondisi energimu stabil! Prioritas tugas hari ini aman.\n\nAda yang mau kamu ceritakan tentang mood atau rencana jajanmu hari ini? Ketik saja, biar aku log dan selaraskan jadwalmu otomatis!',
-        timestamp: '15:55'
+        text: 'Halo! Aku **LifeOS AI Core**, sekretaris pribadi berbasis AI-mu. 🌌\n\nAda yang mau kamu ceritakan tentang mood, aktivitas, atau rencana jajanmu hari ini? Ketik saja, biar aku log dan selaraskan jadwalmu otomatis!',
+        timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
       }
     ];
   });
@@ -326,16 +307,80 @@ export default function App() {
   const [taskPriority, setTaskPriority] = useState('medium');
   const [taskTag, setTaskTag] = useState('Productivity');
   const [taskTime, setTaskTime] = useState('');
+  const [taskEndTime, setTaskEndTime] = useState('');
+  const [taskDate, setTaskDate] = useState(selectedDate);
   const [taskLink, setTaskLink] = useState('');
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
-  const [currentTimeState, setCurrentTimeState] = useState(new Date());
 
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    const subpanels = document.querySelectorAll('.subpanel-overlay, div, section');
+    subpanels.forEach(el => {
+      if (el.scrollTop > 0) {
+        el.scrollTop = 0;
+      }
+    });
+  }, [activeScreen]);
+
+  useEffect(() => {
+    setTaskDate(selectedDate);
+  }, [selectedDate]);
+
+  const [currentTimeState, setCurrentTimeState] = useState(new Date());
+  const notifiedTasksRef = useRef(new Set());
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const checkReminders = () => {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      
+      const now = new Date();
+      const currentHrs = now.getHours().toString().padStart(2, '0');
+      const currentMins = now.getMinutes().toString().padStart(2, '0');
+      const currentTimeStr = `${currentHrs}:${currentMins}`;
+      
+      // Get local date string YYYY-MM-DD
+      const systemYear = now.getFullYear();
+      const systemMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+      const systemDay = now.getDate().toString().padStart(2, '0');
+      const systemTodayStr = `${systemYear}-${systemMonth}-${systemDay}`;
+
+      tasks.forEach(t => {
+        if (t.status === 'pending' && t.dueDate === systemTodayStr && t.taskTime === currentTimeStr) {
+          if (!notifiedTasksRef.current.has(t.id)) {
+            notifiedTasksRef.current.add(t.id);
+            try {
+              new Notification("⏰ Pengingat Tugas LifeOS", {
+                body: `Saatnya mengerjakan: "${t.text}" (Jadwal: ${t.taskTime})`,
+                tag: t.id,
+                requireInteraction: true
+              });
+            } catch (e) {
+              console.error("Failed to trigger browser notification:", e);
+            }
+          }
+        }
+      });
+    };
+
+    // Initial check
+    checkReminders();
+
     const clockTimer = setInterval(() => {
       setCurrentTimeState(new Date());
+      checkReminders();
     }, 30000);
+    
     return () => clearInterval(clockTimer);
-  }, []);
+  }, [tasks]);
   const [dailySummary, setDailySummary] = useState({
     summary: 'AI sedang menganalisis kegiatan hari ini... 🧠',
     bullets: ['Mengevaluasi agenda...']
@@ -349,6 +394,87 @@ export default function App() {
   const chatBottomRef = useRef(null);
   const timerIntervalRef = useRef(null);
 
+  // GPS Tracking States & Helpers for Strava-style Tracker
+  const [isTrackingGps, setIsTrackingGps] = useState(false);
+  const [gpsDistance, setGpsDistance] = useState(0); // in km
+  const [gpsSeconds, setGpsSeconds] = useState(0);
+  const [gpsWatcherId, setGpsWatcherId] = useState(null);
+  const lastCoordsRef = useRef(null);
+  const gpsTimerRef = useRef(null);
+
+  const calculateHaversineDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Earth radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+  };
+
+  const startGpsTracking = () => {
+    if (!navigator.geolocation) {
+      alert("Geolokasi tidak didukung oleh browser Anda.");
+      return;
+    }
+    lastCoordsRef.current = null;
+    setGpsDistance(0);
+    setGpsSeconds(0);
+    setIsTrackingGps(true);
+
+    gpsTimerRef.current = setInterval(() => {
+      setGpsSeconds(prev => prev + 1);
+    }, 1000);
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        if (lastCoordsRef.current) {
+          const dist = calculateHaversineDistance(
+            lastCoordsRef.current.latitude,
+            lastCoordsRef.current.longitude,
+            latitude,
+            longitude
+          );
+          if (dist > 0.002) { // 2 meters threshold
+            setGpsDistance(prev => prev + dist);
+          }
+        }
+        lastCoordsRef.current = { latitude, longitude };
+      },
+      (error) => {
+        console.error("GPS tracking error:", error);
+      },
+      { enableHighAccuracy: true, maximumAge: 1000 }
+    );
+    setGpsWatcherId(watchId);
+  };
+
+  const stopGpsTracking = () => {
+    if (gpsWatcherId) {
+      navigator.geolocation.clearWatch(gpsWatcherId);
+      setGpsWatcherId(null);
+    }
+    if (gpsTimerRef.current) {
+      clearInterval(gpsTimerRef.current);
+      gpsTimerRef.current = null;
+    }
+    setIsTrackingGps(false);
+
+    const calculatedSteps = Math.round(gpsDistance / 0.00075);
+    const workoutMin = Math.round(gpsSeconds / 60);
+
+    setCurrentDay(prev => ({
+      ...prev,
+      steps: (prev.steps || 0) + calculatedSteps,
+      workoutMinutes: (prev.workoutMinutes || 0) + Math.max(1, workoutMin)
+    }));
+
+    alert(`Lari selesai! Anda berhasil menempuh ${gpsDistance.toFixed(2)} km, setara dengan ~${calculatedSteps} langkah, dalam ${workoutMin} menit.`);
+  };
+
   // --- Calculations derived from selections ---
   const filteredTasks = tasks.filter(t => t.dueDate === selectedDate);
   const filteredFinances = finances.filter(f => f.date === selectedDate);
@@ -361,12 +487,97 @@ export default function App() {
     advice: ['Mengevaluasi kondisi harian...']
   });
 
-  // --- Sync to LocalStorage ---
+  // --- Sync to LocalStorage & Supabase ---
   useEffect(() => {
     try {
       localStorage.setItem('lifeos_theme', theme);
     } catch(e){}
   }, [theme]);
+
+  // Database sync state
+  const [isPrismaActive, setIsPrismaActive] = useState(false);
+  const [dbLoading, setDbLoading] = useState(true);
+
+  // Database Pull on Mount (Prisma priority -> Supabase -> LocalStorage)
+  useEffect(() => {
+    const initDb = async () => {
+      const prismaReachable = await checkPrismaReachable();
+      
+      if (prismaReachable) {
+        setIsPrismaActive(true);
+        try {
+          const dbData = await pullUserDataPrisma(userId);
+          if (dbData) {
+            if (dbData.tasks) setTasks(dbData.tasks);
+            if (dbData.finances) setFinances(dbData.finances);
+            if (dbData.currentDay) setCurrentDay(dbData.currentDay);
+            if (dbData.assets) setAssets(dbData.assets);
+            if (dbData.savings) setSavings(dbData.savings);
+            if (dbData.debts) setDebts(dbData.debts);
+            if (dbData.history) setHistory(dbData.history);
+            if (dbData.chatHistory) setChatHistory(dbData.chatHistory);
+            if (dbData.userProfile) setUserProfile(dbData.userProfile);
+          }
+        } catch (err) {
+          console.error("Initial Prisma data pull failed:", err);
+        }
+      } else if (isSupabaseConfigured()) {
+        try {
+          const dbData = await pullUserData(userId);
+          if (dbData) {
+            if (dbData.tasks) setTasks(dbData.tasks);
+            if (dbData.finances) setFinances(dbData.finances);
+            if (dbData.current_day) setCurrentDay(dbData.current_day);
+            if (dbData.assets) setAssets(dbData.assets);
+            if (dbData.savings) setSavings(dbData.savings);
+            if (dbData.debts) setDebts(dbData.debts);
+            if (dbData.history) setHistory(dbData.history);
+            if (dbData.chat_history) setChatHistory(dbData.chat_history);
+            if (dbData.user_profile) setUserProfile(dbData.user_profile);
+          }
+        } catch (err) {
+          console.error("Initial Supabase data pull failed:", err);
+        }
+      }
+      setDbLoading(false);
+    };
+    initDb();
+  }, [userId]);
+
+  // Database Auto Sync Debounced (Prisma priority -> Supabase)
+  useEffect(() => {
+    if (dbLoading) return;
+
+    const delayDebounce = setTimeout(async () => {
+      const statePayload = {
+        tasks,
+        finances,
+        currentDay,
+        assets,
+        savings,
+        debts,
+        history,
+        chatHistory,
+        userProfile
+      };
+
+      if (isPrismaActive) {
+        try {
+          await pushUserDataPrisma(statePayload, userId);
+        } catch (e) {
+          console.warn("Prisma sync failed in background:", e);
+        }
+      } else if (isSupabaseConfigured()) {
+        try {
+          await pushUserData(statePayload, userId);
+        } catch (e) {
+          console.warn("Supabase sync failed in background:", e);
+        }
+      }
+    }, 1500);
+
+    return () => clearTimeout(delayDebounce);
+  }, [tasks, finances, currentDay, assets, savings, debts, history, chatHistory, userProfile, dbLoading, isPrismaActive, userId]);
 
   useEffect(() => {
     try {
@@ -430,7 +641,7 @@ export default function App() {
         date: selectedDate,
         sleepHours: 7.5,
         sleepQuality: 'good',
-        steps: 5000,
+        steps: 0,
         workoutMinutes: 0,
         waterIntake: 1200,
         directMood: 'neutral',
@@ -463,7 +674,7 @@ export default function App() {
     };
     fetchSummary();
     return () => { active = false; };
-  }, [selectedDate]);
+  }, [selectedDate, currentDay, tasks, finances]);
 
   useEffect(() => {
     if (selectedDayIndex !== null && selectedDayIndex >= 0 && selectedDayIndex < history.length) {
@@ -556,7 +767,7 @@ export default function App() {
     };
     fetchExplanation();
     return () => { active = false; };
-  }, [selectedDate]);
+  }, [selectedDate, finalScore, breakdown, currentDay, tasks, finances]);
   
   const insightsList = generatePatternInsights(history);
 
@@ -609,7 +820,7 @@ export default function App() {
         date: dateStr,
         sleepHours: 7.5,
         sleepQuality: 'good',
-        steps: 5000,
+        steps: 0,
         workoutMinutes: 0,
         waterIntake: 1200,
         directMood: 'neutral',
@@ -630,7 +841,7 @@ export default function App() {
     setCurrentDay({
       sleepHours: dayData.sleepHours || 7.5,
       sleepQuality: dayData.sleepQuality || 'good',
-      steps: dayData.steps || 5000,
+      steps: dayData.steps !== undefined ? dayData.steps : 0,
       workoutMinutes: dayData.workoutMinutes || 0,
       waterIntake: dayData.waterIntake || 1200,
       directMood: dayData.directMood || 'neutral',
@@ -678,14 +889,16 @@ export default function App() {
       tag: taskTag,
       status: 'pending',
       snoozeCount: 0,
-      dueDate: selectedDate,
+      dueDate: taskDate || selectedDate,
       time: taskTime || '',
+      endTime: taskEndTime || '',
       link: taskLink || ''
     };
 
     setTasks([...tasks, newTask]);
     setTaskText('');
     setTaskTime('');
+    setTaskEndTime('');
     setTaskLink('');
   };
 
@@ -760,6 +973,17 @@ export default function App() {
 
   const handleDeleteGoal = (id) => {
     setGoals(prev => prev.filter(g => g.id !== id));
+  };
+
+  const handleResetAllData = () => {
+    if (confirm('Apakah Anda yakin ingin menghapus SEMUA data dan memulai ulang aplikasi? Semua data dummy akan dibersihkan.')) {
+      try {
+        localStorage.clear();
+        window.location.reload();
+      } catch (e) {
+        console.error(e);
+      }
+    }
   };
 
   // --- Finance CRUD ---
@@ -959,26 +1183,88 @@ export default function App() {
         }];
       });
 
-      if (actionTriggered && actionTriggered.type === 'ADD_EXPENSE') {
-        const { amount, category, description } = actionTriggered.payload;
-        const targetAssetId = assets && assets.length > 0 ? assets[0].id : 'cash';
-        const newTxn = {
-          id: `txn_${Date.now()}`,
-          type: 'expense',
-          amount,
-          category,
-          description,
-          timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-          date: selectedDate,
-          assetId: targetAssetId
-        };
-        setFinances(prev => [newTxn, ...prev]);
-        setAssets(prev => prev.map(a => {
-          if (a.id === targetAssetId) {
-            return { ...a, balance: a.balance - amount };
+      if (actionTriggered) {
+        if (actionTriggered.type === 'ADD_EXPENSE') {
+          const { amount, category, description } = actionTriggered.payload;
+          const targetAssetId = assets && assets.length > 0 ? assets[0].id : 'cash';
+          const newTxn = {
+            id: `txn_${Date.now()}`,
+            type: 'expense',
+            amount,
+            category,
+            description,
+            timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+            date: selectedDate,
+            assetId: targetAssetId
+          };
+          setFinances(prev => [newTxn, ...prev]);
+          setAssets(prev => prev.map(a => {
+            if (a.id === targetAssetId) {
+              return { ...a, balance: a.balance - amount };
+            }
+            return a;
+          }));
+        } else if (actionTriggered.type === 'ADD_TRANSACTION') {
+          const { type, amount, category, description } = actionTriggered.payload;
+          const targetAssetId = assets && assets.length > 0 ? assets[0].id : 'cash';
+          const amountNum = parseFloat(amount);
+          if (!isNaN(amountNum) && amountNum > 0) {
+            const newTxn = {
+              id: `txn_${Date.now()}`,
+              type: type || 'expense',
+              amount: amountNum,
+              category: category || (type === 'income' ? 'Salary' : 'Caffeine/Food'),
+              description: description || 'Transaksi AI ✨',
+              timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+              date: selectedDate,
+              assetId: targetAssetId
+            };
+            setFinances(prev => [newTxn, ...prev]);
+            setAssets(prev => prev.map(a => {
+              if (a.id === targetAssetId) {
+                return {
+                  ...a,
+                  balance: type === 'income' ? a.balance + amountNum : a.balance - amountNum
+                };
+              }
+              return a;
+            }));
           }
-          return a;
-        }));
+        } else if (actionTriggered.type === 'ADD_TASK') {
+          const { text, priority, tag, date } = actionTriggered.payload;
+          const newTask = {
+            id: `task_${Date.now()}`,
+            text: text || 'Tugas Baru (Rekomendasi AI) 📝',
+            priority: priority || 'medium',
+            tag: tag || 'Productivity',
+            status: 'pending',
+            date: date || selectedDate,
+            time: '09:00',
+            endTime: '10:00'
+          };
+          setTasks(prev => [...prev, newTask]);
+        } else if (actionTriggered.type === 'RESCHEDULE_TASKS') {
+          const { taskIds, nextDate } = actionTriggered.payload;
+          if (taskIds && nextDate) {
+            setTasks(prev => prev.map(t => {
+              if (taskIds.includes(t.id)) {
+                return { ...t, date: nextDate };
+              }
+              return t;
+            }));
+          }
+        } else if (actionTriggered.type === 'ADD_SAVING_FUND') {
+          const { savingId, amount } = actionTriggered.payload;
+          const amountNum = parseFloat(amount);
+          if (!isNaN(amountNum) && amountNum > 0) {
+            setSavings(prev => prev.map(s => {
+              if (s.id === savingId || (!savingId && prev.indexOf(s) === 0)) {
+                return { ...s, currentAmount: (s.currentAmount || 0) + amountNum };
+              }
+              return s;
+            }));
+          }
+        }
       }
     } catch (err) {
       console.error(err);
@@ -1292,6 +1578,9 @@ export default function App() {
           isQuotaExceeded={isQuotaExceeded}
         />
 
+        {/* Gamified Growth Garden */}
+        <GrowthGarden tasks={tasks} savings={savings} currentDay={currentDay} />
+
         {/* Calendar Widget */}
         <CalendarWidget 
           history={history}
@@ -1312,16 +1601,87 @@ export default function App() {
               <span className="subcard-primary-label">{currentDay ? currentDay.sleepHours : 7.5} Jam</span>
               <span className="subcard-secondary-label">Kualitas: {currentDay ? currentDay.sleepQuality : 'good'}</span>
             </div>
-            <div className="upcoming-subcard">
-              <div className="subcard-title-row"><Activity size={10} color="var(--accent-volt)" /><span>Langkah/Latihan</span></div>
-              <span className="subcard-primary-label">{currentDay ? currentDay.steps : 5000} Steps</span>
-              <span className="subcard-action-value">{currentDay ? currentDay.workoutMinutes : 0} Min Workout</span>
-            </div>
-            <div className="upcoming-subcard">
-              <div className="subcard-title-row"><Droplet size={10} color="var(--accent-volt)" /><span>Hidrasi Air</span></div>
-              <span className="subcard-primary-label">{currentDay ? currentDay.waterIntake : 1200} ml</span>
-              <span className="subcard-secondary-label">Daily Target</span>
-            </div>
+            {isTrackingGps ? (
+              <div className="upcoming-subcard" style={{ borderColor: '#fc4c02', background: 'linear-gradient(135deg, rgba(252, 76, 2, 0.15), rgba(0, 0, 0, 0.3))', minWidth: '170px' }}>
+                <div className="subcard-title-row">
+                  <span className="animate-pulse" style={{ color: '#fc4c02', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    🔴 LIVE TRACKING
+                  </span>
+                </div>
+                <span className="subcard-primary-label" style={{ fontSize: '1.1rem', color: '#fff' }}>
+                  {gpsDistance.toFixed(2)} km
+                </span>
+                <span style={{ fontSize: '0.65rem', color: '#fc4c02', fontWeight: 'bold' }}>
+                  ⏱️ {Math.floor(gpsSeconds / 60)}m {gpsSeconds % 60}s
+                </span>
+                <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.7)' }}>
+                  Est: ~{Math.round(gpsDistance / 0.00075)} steps
+                </span>
+                <button 
+                  type="button" 
+                  onClick={stopGpsTracking} 
+                  style={{ background: '#fc4c02', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '0.6rem', padding: '4px 8px', fontWeight: 'bold', cursor: 'pointer', marginTop: '4px' }}
+                >
+                  ⏹️ Hentikan & Simpan
+                </button>
+              </div>
+            ) : (
+              <div className="upcoming-subcard" style={{ borderColor: 'rgba(252, 76, 2, 0.4)', background: 'linear-gradient(135deg, rgba(252, 76, 2, 0.08), rgba(0, 0, 0, 0.2))', minWidth: '170px' }}>
+                <div className="subcard-title-row">
+                  <Activity size={10} color="#fc4c02" />
+                  <span style={{ color: '#fc4c02', fontWeight: 'bold' }}>STRAVA TRACKER</span>
+                </div>
+                <span className="subcard-primary-label" style={{ fontSize: '0.85rem' }}>
+                  {(currentDay ? currentDay.steps * 0.00075 : 0).toFixed(2)} km
+                </span>
+                <span className="subcard-secondary-label" style={{ fontSize: '0.65rem', color: '#fc4c02', fontWeight: 'bold' }}>
+                  🔥 {currentDay ? currentDay.steps : 0} Steps ({currentDay ? Math.round(currentDay.steps * 0.04) : 0} kcal)
+                </span>
+                <span className="subcard-action-value" style={{ fontSize: '0.7rem', color: 'var(--text-primary)' }}>
+                  ⏱️ {currentDay ? currentDay.workoutMinutes : 0} Min Workout
+                </span>
+                <button 
+                  type="button" 
+                  onClick={startGpsTracking} 
+                  style={{ background: 'rgba(252, 76, 2, 0.2)', color: '#fc4c02', border: '1px solid #fc4c02', borderRadius: '8px', fontSize: '0.6rem', padding: '4px 8px', fontWeight: 'bold', cursor: 'pointer', marginTop: '4px' }}
+                >
+                  🏃 Mulai Lari/Jalan
+                </button>
+              </div>
+            )}
+
+            {/* Savings Targets Card */}
+            {savings.length > 0 ? (
+              savings.map(s => {
+                const remaining = s.targetAmount - s.currentAmount;
+                return (
+                  <div className="upcoming-subcard" key={s.id} style={{ borderColor: 'var(--accent-purple-glow)', minWidth: '160px' }}>
+                    <div className="subcard-title-row">
+                      <Target size={10} color="var(--accent-purple)" />
+                      <span>TARGET TABUNGAN</span>
+                    </div>
+                    <span className="subcard-primary-label" style={{ fontSize: '0.8rem' }}>{s.name}</span>
+                    <span className="subcard-secondary-label" style={{ fontSize: '0.6rem' }}>
+                      Target: Rp {s.targetAmount.toLocaleString('id-ID')}
+                    </span>
+                    <span className="subcard-action-value" style={{ fontSize: '0.75rem', color: remaining > 0 ? 'var(--accent-coral)' : 'var(--accent-volt)' }}>
+                      {remaining > 0 ? `Kurang: Rp ${remaining.toLocaleString('id-ID')}` : '🎉 Tercapai!'}
+                    </span>
+                  </div>
+                );
+              })
+            ) : (
+              <div 
+                className="upcoming-subcard" 
+                onClick={() => setActiveScreen('finance')} 
+                style={{ cursor: 'pointer', border: '1px dashed var(--text-muted)', minWidth: '160px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+              >
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>TARGET TABUNGAN</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '4px' }}>+ Tambah Tabungan</div>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -1364,13 +1724,21 @@ export default function App() {
           {filteredFinances.map(f => (
             <div className="recent-row-item" key={f.id}>
               <div className="row-item-left">
-                <div className="row-item-circle-icon"><ArrowDownRight size={14} color="var(--accent-coral)" /></div>
+                <div className="row-item-circle-icon">
+                  {f.type === 'income' ? (
+                    <ArrowUpRight size={14} color="var(--accent-volt-dark)" />
+                  ) : (
+                    <ArrowDownRight size={14} color="var(--accent-coral)" />
+                  )}
+                </div>
                 <div className="row-item-text-stack">
                   <span className="row-item-title">{f.description}</span>
                   <span className="row-item-meta">{f.category} • {f.timestamp}</span>
                 </div>
               </div>
-              <span className="row-item-value-badge negative">-Rp {f.amount.toLocaleString('id-ID')}</span>
+              <span className={`row-item-value-badge ${f.type === 'income' ? 'positive' : 'negative'}`} style={{ color: f.type === 'income' ? 'var(--accent-volt-dark)' : 'var(--text-primary)' }}>
+                {f.type === 'income' ? '+' : '-'}Rp {f.amount.toLocaleString('id-ID')}
+              </span>
             </div>
           ))}
         </section>
@@ -1399,6 +1767,10 @@ export default function App() {
           setTaskTag={setTaskTag}
           taskTime={taskTime}
           setTaskTime={setTaskTime}
+          taskEndTime={taskEndTime}
+          setTaskEndTime={setTaskEndTime}
+          taskDate={taskDate}
+          setTaskDate={setTaskDate}
           taskLink={taskLink}
           setTaskLink={setTaskLink}
           handleAddTask={handleAddTask}
@@ -1461,6 +1833,7 @@ export default function App() {
           onUpdateAssetBalance={handleUpdateAssetBalance}
           onDeleteAsset={handleDeleteAsset}
           finances={finances}
+          savings={savings}
         />
       )}
 
@@ -1482,6 +1855,11 @@ export default function App() {
           setCurrentDay={setCurrentDay}
           selectedDate={selectedDate}
           formatDateHeader={formatDateHeader}
+          startGpsTracking={startGpsTracking}
+          stopGpsTracking={stopGpsTracking}
+          gpsSeconds={gpsSeconds}
+          gpsDistance={gpsDistance}
+          isTrackingGps={isTrackingGps}
         />
       )}
 
@@ -1499,6 +1877,7 @@ export default function App() {
           selectedDate={selectedDate}
           onUpdateTask={handleUpdateTask}
           onDeleteTask={handleDeleteTask}
+          onResetAllData={handleResetAllData}
         />
       )}
 
@@ -1516,7 +1895,7 @@ export default function App() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
             <span style={{ fontWeight: 'bold', fontSize: '0.8rem' }}>AI Recommendations:</span>
-            {aiExplanation.advice.map((adv, idx) => (
+            {(aiExplanation.advice || []).map((adv, idx) => (
               <div key={idx} style={{ background: 'var(--bg-pill)', borderLeft: '4px solid var(--accent-volt-dark)', padding: '0.6rem 0.85rem', borderRadius: '12px', fontSize: '0.75rem' }}>
                 {adv}
               </div>

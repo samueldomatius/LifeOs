@@ -14,6 +14,8 @@ export default function TasksManager({
   setTaskTime,
   taskEndTime,
   setTaskEndTime,
+  taskDate,
+  setTaskDate,
   taskLink,
   setTaskLink,
   handleAddTask, 
@@ -38,6 +40,7 @@ export default function TasksManager({
   const [editTaskTag, setEditTaskTag] = useState('Productivity');
   const [editTaskTime, setEditTaskTime] = useState('');
   const [editTaskEndTime, setEditTaskEndTime] = useState('');
+  const [editTaskDate, setEditTaskDate] = useState('');
   const [editTaskLink, setEditTaskLink] = useState('');
   return (
     <div className="subpanel-overlay">
@@ -112,6 +115,16 @@ export default function TasksManager({
             />
           </div>
 
+          <input 
+            type="date" 
+            className="select-input"
+            value={taskDate} 
+            onChange={(e) => setTaskDate(e.target.value)}
+            style={{ flex: '1 1 120px', color: 'var(--text-primary)' }}
+            title="Tanggal Tugas"
+            required
+          />
+
           <button type="submit" className="primary-btn" style={{ flex: '1 1 60px' }}>
             Log
           </button>
@@ -167,11 +180,11 @@ export default function TasksManager({
       })()}
 
       {/* Focus Block Timer Widget */}
-      <div className="glass-panel volt-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', textAlign: 'center', background: 'var(--text-primary)', marginTop: '0.25rem' }}>
-        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', fontWeight: 'bold' }}>
+      <div className="glass-panel volt-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', textAlign: 'center', marginTop: '0.25rem' }}>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'bold' }}>
           {focusTask ? `🎯 FOKUS: ${focusTask.text}` : 'FOCUS TIMER BLOCK'}
         </span>
-        <div style={{ fontSize: '2.5rem', fontFamily: 'Outfit', fontWeight: '800', color: '#fff' }}>
+        <div style={{ fontSize: '2.5rem', fontFamily: 'Outfit', fontWeight: '800', color: 'var(--text-primary)' }}>
           {Math.floor(timerTime / 60)}:{(timerTime % 60).toString().padStart(2, '0')}
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -186,17 +199,17 @@ export default function TasksManager({
           <button 
             type="button"
             className="timer-btn reset" 
-            style={{ flex: 1, padding: '8px', borderRadius: '12px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', cursor: 'pointer' }}
+            style={{ flex: 1, padding: '8px', borderRadius: '12px', background: 'var(--bg-pill)', color: 'var(--text-primary)', border: '1px solid var(--card-border-inner)', cursor: 'pointer' }}
             onClick={resetTimer}
           >
             Reset
           </button>
         </div>
-        <div className="ambient-sound-sim" style={{ color: 'rgba(255,255,255,0.8)', background: 'rgba(255,255,255,0.05)', marginTop: '0.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+        <div className="ambient-sound-sim" style={{ color: 'var(--text-secondary)', background: 'var(--bg-pill)', marginTop: '0.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', borderRadius: '12px', padding: '4px 8px' }}>
           <select 
             value={ambientSound} 
             onChange={(e) => setAmbientSound(e.target.value)}
-            style={{ background: 'none', border: 'none', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold', outline: 'none', cursor: 'pointer', flex: 1 }}
+            style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: '0.75rem', fontWeight: 'bold', outline: 'none', cursor: 'pointer', flex: 1 }}
           >
             <option value="rain" style={{ background: '#222', color: '#fff' }}>🌧️ Rain & Storm</option>
             <option value="waves" style={{ background: '#222', color: '#fff' }}>🌊 Ocean Waves</option>
@@ -230,6 +243,7 @@ export default function TasksManager({
                       tag: editTaskTag,
                       time: editTaskTime,
                       endTime: editTaskEndTime,
+                      dueDate: editTaskDate,
                       link: editTaskLink
                     });
                     setEditingTaskId(null);
@@ -252,12 +266,12 @@ export default function TasksManager({
                     onChange={(e) => setEditTaskLink(e.target.value)}
                     style={{ padding: '0.45rem 0.75rem', fontSize: '0.75rem', width: '100%' }}
                   />
-                  <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', width: '100%' }}>
+                  <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', width: '100%', flexWrap: 'wrap' }}>
                     <select 
                       className="select-input" 
                       value={editTaskPriority} 
                       onChange={(e) => setEditTaskPriority(e.target.value)}
-                      style={{ flex: 1, padding: '4px', fontSize: '0.7rem' }}
+                      style={{ flex: '1 1 80px', padding: '4px', fontSize: '0.7rem' }}
                     >
                       <option value="high">High</option>
                       <option value="medium">Medium</option>
@@ -267,20 +281,20 @@ export default function TasksManager({
                       className="select-input" 
                       value={editTaskTag} 
                       onChange={(e) => setEditTaskTag(e.target.value)}
-                      style={{ flex: 1, padding: '4px', fontSize: '0.7rem' }}
+                      style={{ flex: '1 1 90px', padding: '4px', fontSize: '0.7rem' }}
                     >
                       <option value="Productivity">Productivity</option>
                       <option value="Health">Health</option>
                       <option value="Finance">Finance</option>
                       <option value="Growth">Growth</option>
                     </select>
-                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flex: 1 }}>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flex: '1 1 120px' }}>
                       <input 
                         type="time" 
                         className="select-input" 
                         value={editTaskTime} 
                         onChange={(e) => setEditTaskTime(e.target.value)}
-                        style={{ flex: 1, padding: '4px', fontSize: '0.7rem', color: 'var(--text-primary)' }}
+                        style={{ flex: 1, padding: '4px', fontSize: '0.7rem', color: 'var(--text-primary)', minWidth: '50px' }}
                         title="Jam Mulai"
                       />
                       <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>s/d</span>
@@ -289,10 +303,19 @@ export default function TasksManager({
                         className="select-input" 
                         value={editTaskEndTime} 
                         onChange={(e) => setEditTaskEndTime(e.target.value)}
-                        style={{ flex: 1, padding: '4px', fontSize: '0.7rem', color: 'var(--text-primary)' }}
+                        style={{ flex: 1, padding: '4px', fontSize: '0.7rem', color: 'var(--text-primary)', minWidth: '50px' }}
                         title="Jam Selesai"
                       />
                     </div>
+                    <input 
+                      type="date" 
+                      className="select-input" 
+                      value={editTaskDate} 
+                      onChange={(e) => setEditTaskDate(e.target.value)}
+                      style={{ flex: '1 1 100px', padding: '4px', fontSize: '0.7rem', color: 'var(--text-primary)' }}
+                      title="Tanggal Tugas"
+                      required
+                    />
                   </div>
                   <div style={{ display: 'flex', gap: '6px', alignSelf: 'flex-end', marginTop: '4px' }}>
                     <button type="submit" className="primary-btn" style={{ padding: '4px 10px', fontSize: '0.7rem', borderRadius: '8px' }}>Simpan</button>
@@ -311,9 +334,9 @@ export default function TasksManager({
                         <span style={{ fontSize: '0.75rem', fontWeight: 600, textDecoration: t.status === 'completed' ? 'line-through' : 'none', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
                           {t.text}
                         </span>
-                        {t.time && (
+                        {(t.time || t.endTime) && (
                           <span style={{ fontSize: '0.6rem', color: 'var(--accent-orange)', fontWeight: 'bold', background: 'var(--bg-pill)', padding: '1px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
-                            🕒 {t.time}
+                            🕒 {t.time || ''}{t.endTime ? ` - ${t.endTime}` : ''}
                           </span>
                         )}
                         {t.link && (() => {
@@ -344,7 +367,7 @@ export default function TasksManager({
                         })()}
                       </div>
                       <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>
-                        {t.tag} • Snooze: {t.snoozeCount}
+                        📅 {t.dueDate || selectedDate} • {t.tag} • Snooze: {t.snoozeCount || 0}
                       </span>
                     </div>
                   </div>
@@ -364,12 +387,14 @@ export default function TasksManager({
                       type="button"
                       className="shortcut-circle-icon" 
                       style={{ width: '26px', height: '26px', background: 'none', border: 'none', color: 'var(--text-muted)', padding: 0 }}
-                      onClick={() => {
+                       onClick={() => {
                         setEditingTaskId(t.id);
                         setEditTaskText(t.text);
                         setEditTaskPriority(t.priority);
                         setEditTaskTag(t.tag);
                         setEditTaskTime(t.time || '');
+                        setEditTaskEndTime(t.endTime || '');
+                        setEditTaskDate(t.dueDate || selectedDate);
                         setEditTaskLink(t.link || '');
                       }}
                       title="Edit"

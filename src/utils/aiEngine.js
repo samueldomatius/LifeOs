@@ -1,93 +1,176 @@
 // LifeOS AI Engine ("Otak Pusat") powered by Google Gemini API
 // Sinergi analisis lintas-dimensi antara tidur, pengeluaran, mood, dan produktivitas harian.
 
-const getApiKeys = () => {
-  const envKeys = import.meta.env.VITE_GEMINI_API_KEYS;
-  if (envKeys) {
-    return envKeys.split(',').map(k => k.replace(/['"]/g, '').trim());
-  }
-  return [
-    "AIzaSyBGydVFDEE89tYUwbH9SnZeINXBD4AZinY", // default key
-    "AIzaSyB_enA5PeId2B5Qpy9WgZXyr9MzUMGsvFc", // api 1
-    "AIzaSyDlytncg_-rfoa3BXLN8TCmtc_OUTWjUbU", // api 2
-    "AQ.Ab8RN6JYP9pCNJoNPlbstrUvTv5PfsLgQanhiJUaa00hL3e25w"  // api 3
-  ];
-};
-
-const GEMINI_API_KEYS = getApiKeys();
 let currentKeyIndex = 0;
 
-// Helper to make direct HTTP fetch request to Gemini API with automatic key rotation failover
-async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineData = null, retryCount = 0) {
-  if (retryCount >= GEMINI_API_KEYS.length) {
-    throw new Error("All Gemini API keys exhausted / quota exceeded.");
+const API_KEYS = [
+  "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",
+  "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",
+  "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",
+  "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",
+  "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",
+  "AIzaSyBGydVFDEE89tYUwbH9SnZeINXBD4AZinY",
+  "AIzaSyB_enA5PeId2B5Qpy9WgZXyr9MzUMGsvFc",
+  "AIzaSyDlytncg_-rfoa3BXLN8TCmtc_OUTWjUbU",
+  "AIzaSyA9FJ6dT3m7IWrpB_F1FlKM8yc89H1Orig"
+];
+
+// Helper to make direct HTTP fetch requests supporting OpenRouter and Gemini Native key rotation failover
+async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineData = null, retryCount = 0, errorsAccumulated = []) {
+  if (retryCount >= API_KEYS.length) {
+    throw new Error(`Semua API Key habis. Detail: [ ${errorsAccumulated.join(" | ")} ]`);
   }
   
-  const activeKey = GEMINI_API_KEYS[currentKeyIndex];
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${activeKey}`;
+  const activeKey = API_KEYS[currentKeyIndex];
 
   try {
-    const generationConfig = {
-      temperature: jsonSchema ? 0.15 : 0.7,
-      maxOutputTokens: 4000
-    };
-    
-    if (jsonSchema) {
-      generationConfig.responseMimeType = "application/json";
-      generationConfig.responseSchema = jsonSchema;
-    }
+    if (activeKey.startsWith("sk-or-v1-")) {
+      // --- OpenRouter Chat Completion Call ---
+      const url = "https://openrouter.ai/api/v1/chat/completions";
+      const messages = [];
+      if (systemPrompt) {
+        messages.push({ role: "system", content: systemPrompt });
+      }
 
-    const parts = [];
-    if (systemPrompt && userPrompt) {
-      parts.push({ text: `${systemPrompt}\n\nUser Input/Context:\n${userPrompt}` });
-    } else if (systemPrompt) {
-      parts.push({ text: systemPrompt });
-    } else if (userPrompt) {
-      parts.push({ text: userPrompt });
-    }
+      if (inlineData) {
+        // Multimodal receipt OCR support
+        messages.push({
+          role: "user",
+          content: [
+            { type: "text", text: userPrompt || "Scan this receipt." },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${inlineData.mimeType};base64,${inlineData.data}`
+              }
+            }
+          ]
+        });
+      } else {
+        messages.push({ role: "user", content: userPrompt });
+      }
 
-    if (inlineData) {
-      parts.push({ inlineData });
-    }
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: parts
-          }
-        ],
-        generationConfig
-      })
-    });
-    
-    if (!response.ok) {
-      const errText = await response.text();
-      console.warn(`Gemini API key index ${currentKeyIndex} failed with status ${response.status}. Rotating...`);
+      const openRouterModels = [
+        "google/gemini-2.5-flash",
+        "google/gemini-2.0-flash",
+        "deepseek/deepseek-chat"
+      ];
       
-      if (response.status === 429 || response.status === 400 || response.status === 403) {
-        currentKeyIndex = (currentKeyIndex + 1) % GEMINI_API_KEYS.length;
-        return await callGemini(systemPrompt, userPrompt, jsonSchema, inlineData, retryCount + 1);
+      const modelErrors = [];
+      
+      for (const modelName of openRouterModels) {
+        try {
+          const requestBody = {
+            model: modelName,
+            messages,
+            max_tokens: 1500,
+            temperature: jsonSchema ? 0.15 : 0.7
+          };
+
+          if (jsonSchema) {
+            requestBody.response_format = { type: "json_object" };
+          }
+
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${activeKey}`,
+              "HTTP-Referer": "https://lifeos.local",
+              "X-Title": "LifeOS App"
+            },
+            body: JSON.stringify(requestBody)
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            return data.choices?.[0]?.message?.content || "";
+          } else {
+            const errText = await response.text();
+            modelErrors.push(`${modelName}(${response.status}: ${errText.substring(0, 90)})`);
+          }
+        } catch (e) {
+          modelErrors.push(`${modelName} error: ${e.message}`);
+        }
       }
       
-      throw new Error(`Gemini API error: Status ${response.status} - ${errText}`);
+      throw new Error(`OpenRouter models failed: [ ${modelErrors.join(" | ")} ]`);
+
+    } else {
+      // --- Gemini Native GenerateContent Call ---
+      const nativeModels = [
+        "gemini-2.0-flash",
+        "gemini-2.5-flash",
+        "gemini-1.5-flash"
+      ];
+      
+      const nativeErrors = [];
+      for (const modelName of nativeModels) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
+          const generationConfig = {
+            temperature: jsonSchema ? 0.15 : 0.7,
+            maxOutputTokens: 2500
+          };
+          
+          if (jsonSchema) {
+            generationConfig.responseMimeType = "application/json";
+            generationConfig.responseSchema = jsonSchema;
+          }
+
+          const parts = [];
+          if (systemPrompt && userPrompt) {
+            parts.push({ text: `${systemPrompt}\n\nUser Input/Context:\n${userPrompt}` });
+          } else if (systemPrompt) {
+            parts.push({ text: systemPrompt });
+          } else if (userPrompt) {
+            parts.push({ text: userPrompt });
+          }
+
+          if (inlineData) {
+            parts.push({
+              inlineData: {
+                mimeType: inlineData.mimeType,
+                data: inlineData.data
+              }
+            });
+          }
+
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: "user",
+                  parts: parts
+                }
+              ],
+              generationConfig
+            })
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          } else {
+            const errText = await response.text();
+            nativeErrors.push(`${modelName}(${response.status}: ${errText.substring(0, 90)})`);
+          }
+        } catch (e) {
+          nativeErrors.push(`${modelName} error: ${e.message}`);
+        }
+      }
+      
+      throw new Error(`Gemini Native models failed: [ ${nativeErrors.join(" | ")} ]`);
     }
-    
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    return text;
   } catch (error) {
-    console.error(`Failed call with API key index ${currentKeyIndex}:`, error);
-    if (retryCount < GEMINI_API_KEYS.length - 1) {
-      currentKeyIndex = (currentKeyIndex + 1) % GEMINI_API_KEYS.length;
-      return await callGemini(systemPrompt, userPrompt, jsonSchema, inlineData, retryCount + 1);
-    }
-    throw error;
+    const errorMsg = `KeyIndex ${currentKeyIndex}: ${error.message}`;
+    console.warn(errorMsg);
+    currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
+    return await callGemini(systemPrompt, userPrompt, jsonSchema, inlineData, retryCount + 1, [...errorsAccumulated, errorMsg]);
   }
 }
 
@@ -104,16 +187,13 @@ export const calculateLifeScore = (currentDay, tasks, finances) => {
     if (currentDay.sleepQuality === 'good') sleepPoints = Math.min(100, sleepPoints + 15);
     if (currentDay.sleepQuality === 'poor') sleepPoints = Math.max(20, sleepPoints - 25);
 
-    const stepsVal = currentDay.steps || 5000;
+    const stepsVal = currentDay.steps !== undefined ? currentDay.steps : 0;
     const stepsPoints = stepsVal >= 10000 ? 100 : stepsVal >= 7000 ? 85 : stepsVal >= 4000 ? 60 : 35;
 
     const workoutVal = currentDay.workoutMinutes || 0;
     const workoutPoints = workoutVal >= 45 ? 100 : workoutVal >= 20 ? 80 : workoutVal > 0 ? 60 : 30;
 
-    const waterVal = currentDay.waterIntake || 1500;
-    const waterPoints = waterVal >= 2000 ? 100 : waterVal >= 1200 ? 75 : 40;
-
-    healthScore = (sleepPoints + stepsPoints + workoutPoints + waterPoints) / 4;
+    healthScore = (sleepPoints + stepsPoints + workoutPoints) / 3;
   }
 
   // 2. Productivity Subscore (25%)
@@ -206,9 +286,11 @@ Provide 2-3 specific, actionable coaching tips.
     required: ["explanation", "advice"]
   };
 
-  const totalExpense = finances.filter(f => f.type === 'expense').reduce((sum, f) => sum + f.amount, 0);
-  const snoozedCount = tasks.filter(t => t.status === 'snoozed').length;
-  const completedCount = tasks.filter(t => t.status === 'completed').length;
+  const safeFinances = finances || [];
+  const safeTasks = tasks || [];
+  const totalExpense = safeFinances.filter(f => f.type === 'expense').reduce((sum, f) => sum + f.amount, 0);
+  const snoozedCount = safeTasks.filter(t => t.status === 'snoozed').length;
+  const completedCount = safeTasks.filter(t => t.status === 'completed').length;
 
   const userPrompt = `
 LQS Score: ${score}/100
@@ -219,7 +301,6 @@ Mood Subscore: ${breakdown.mood}%
 Sleep Hours: ${habits.sleepHours} (${habits.sleepQuality} quality)
 Steps Today: ${habits.steps}
 Workout: ${habits.workoutMinutes} minutes
-Water Intake: ${habits.waterIntake} ml
 Total Spending Today: Rp ${totalExpense.toLocaleString('id-ID')}
 Tasks Completed: ${completedCount} completed, ${snoozedCount} snoozed.
 `;
@@ -241,7 +322,7 @@ Tasks Completed: ${completedCount} completed, ${snoozedCount} snoozed.
     console.error("Gemini explanation generation failed, using mock fallback:", error);
     // Mock Fallback
     return {
-      explanation: `Life Quality Score kamu berada di angka **${score}/100**. Tidur ${habits.sleepHours} jam dan pengeluaran Rp ${totalExpense.toLocaleString('id-ID')} memicu dinamika stres dan energi harian.`,
+      explanation: `Life Quality Score kamu berada di angka **${score || 70}/100**. Tidur ${habits?.sleepHours || 7} jam dan pengeluaran Rp ${(totalExpense || 0).toLocaleString('id-ID')} memicu dinamika stres dan energi harian.`,
       advice: [
         "🌿 Pertahankan kecukupan air minum minimal 2 liter.",
         "📅 Selesaikan tugas prioritas rendah sebelum berganti hari.",
@@ -259,39 +340,61 @@ Communicate in a mix of Indonesian and Gen Z slang (bestie, gaes, dll.) with a s
 You know the user's complete state: tasks, budget, finances, mood, financial assets, active life goals, and historical logs. 
 If the user asks about their balance, goals, or past trends, utilize the provided data to answer accurately and suggest tips.
 
-If the user wants to log an expense (e.g. "beli kopi 25000", "jajan boba 15000", "tadi nonton bioskop habis 60000"), you MUST log it by writing a JSON block at the very end of your response inside a code block tagged with 'action_trigger'.
-Example:
-\`\`\`action_trigger
-{
-  "type": "ADD_EXPENSE",
-  "payload": {
-    "amount": 25000,
-    "category": "Caffeine/Food",
-    "description": "beli kopi"
-  }
-}
-\`\`\`
-(Possible categories: Caffeine/Food, Impulse/Lifestyle, Travel, Other)
+Jika pengguna meminta Anda melakukan tindakan tertentu seperti mencatat pengeluaran/pemasukan, menjadwalkan ulang tugas, menambah tugas baru, atau menambah tabungan, Anda WAJIB menyertakan blok kode JSON 'action_trigger' di akhir respon Anda:
 
-If the user mentions being tired, exhausted, or stressed, and they have pending high priority tasks, suggest micro-breaks and rescheduling. Include this action block at the end:
+1. Mencatat Transaksi (Mendukung Pengeluaran & Pendapatan/Pemasukan):
 \`\`\`action_trigger
 {
-  "type": "AUTO_RESCHEDULE_TIRED",
+  "type": "ADD_TRANSACTION",
   "payload": {
-    "postponeIds": ["t1", "t2"],
-    "insertTask": {
-      "text": "🧘 Micro-Break & Nafas Ringan (Rekomendasi AI)",
-      "priority": "low",
-      "tag": "Health",
-      "status": "pending"
-    }
+    "type": "income",  // atau "expense"
+    "amount": 50000,
+    "category": "Salary",  // Kategori: "Salary", "Freelance", "Investment", "Gift", "Caffeine/Food", "Impulse/Lifestyle", "Travel", "Other"
+    "description": "Gaji Proyek Freelance"
   }
 }
 \`\`\`
 
-If they mention exercising or workout, acknowledge it warmly and update their metrics.
+2. Menambah Tugas Baru:
+\`\`\`action_trigger
+{
+  "type": "ADD_TASK",
+  "payload": {
+    "text": "Belajar Pemrograman React",
+    "priority": "high",  // "high", "medium", "low"
+    "tag": "Productivity",  // "Productivity", "Health", "Finance", "Lifestyle", "Other"
+    "date": "2026-05-29"   // tanggal target YYYY-MM-DD
+  }
+}
+\`\`\`
 
-Keep your response concise, helpful, and very Gen Z! Use rich markdown styling (bolding, lists).
+3. Menjadwalkan Ulang Tugas:
+\`\`\`action_trigger
+{
+  "type": "RESCHEDULE_TASKS",
+  "payload": {
+    "taskIds": ["t1"],
+    "nextDate": "2026-05-30"  // YYYY-MM-DD
+  }
+}
+\`\`\`
+
+4. Menambah Tabungan (Menabung ke target tabungan tertentu):
+\`\`\`action_trigger
+{
+  "type": "ADD_SAVING_FUND",
+  "payload": {
+    "savingId": "s1",  // atau biarkan null jika tidak spesifik
+    "amount": 100000
+  }
+}
+\`\`\`
+
+Jika pengguna lelah atau stres dan memiliki tugas prioritas tinggi, Anda dapat menggunakan AUTO_RESCHEDULE_TIRED untuk menyisipkan tugas istirahat.
+Kategori untuk 'expense': Caffeine/Food, Impulse/Lifestyle, Travel, Other.
+Kategori untuk 'income': Salary, Freelance, Investment, Gift, Other.
+
+Usahakan respon tetap singkat, ramah, dan sangat Gen Z! Gunakan format markdown tebal dan list yang cantik.
 `;
 
   const pendingTasks = appState.tasks.filter(t => t.status === 'pending');
@@ -351,16 +454,36 @@ Past History Logs (Last 5 days): ${JSON.stringify((appState.history || []).slice
   } catch (error) {
     console.error("Gemini chat processing failed, using fallback:", error);
     return {
-      aiText: "Aduh bestie, koneksi AI Core-ku agak keganggu nih. Tapi aku denger kok! Semangat terus ya! 💕",
+      aiText: `Aduh bestie, koneksi AI Core-ku agak keganggu nih. (Detail Error: ${error.message}). Tapi aku denger kok! Semangat terus ya! 💕`,
       stateUpdates: null,
       actionTriggered: null
     };
   }
 };
 
-// Generates personalized AI pattern insights derived from history
 export const generatePatternInsights = (history) => {
-  if (!history || history.length === 0) return [];
+  if (!history || history.length < 3) {
+    return [
+      {
+        title: "💡 AI Sedang Mempelajari Pola Hidupmu",
+        insight: "LifeOS AI membutuhkan **minimal 3 hari catatan riwayat** untuk menganalisis korelasi lintas-dimensi secara akurat antara kualitas tidur, produktivitas, pengeluaran harian, dan kondisi mood Anda. Tetap catat aktivitas harianmu ya, bestie! 🚀",
+        impact: "Analisis Pola Harian: Menunggu Data Terkumpul",
+        type: "info"
+      },
+      {
+        title: "⚡ Korelasi Fisik-Produktivitas (Mendatang)",
+        insight: "Di sini Anda akan melihat laporan bagaimana durasi tidur Anda mempengaruhi efisiensi penyelesaian daftar tugas harian secara riil.",
+        impact: "Menunggu Lebih Banyak Data",
+        type: "info"
+      },
+      {
+        title: "🛍️ Pemicu Belanja Impulsif (Mendatang)",
+        insight: "AI akan melacak dan memetakan korelasi apakah tingkat lelah/stres dan kurang tidur menjadi pemicu utama melonjaknya pengeluaran impulsif Anda.",
+        impact: "Menunggu Lebih Banyak Data",
+        type: "info"
+      }
+    ];
+  }
 
   const lowSleepDays = history.filter(h => h.sleepHours < 6.5);
   const goodSleepDays = history.filter(h => h.sleepHours >= 6.5);
@@ -479,22 +602,23 @@ Also extract a bulleted list of 3-4 key highlights of the day.
     required: ["summary", "bullets"]
   };
 
-  const totalExpense = finances.filter(f => f.type === 'expense').reduce((sum, f) => sum + f.amount, 0);
-  const completedTasks = tasks.filter(t => t.status === 'completed');
-  const pendingTasks = tasks.filter(t => t.status === 'pending');
+  const safeFinances = finances || [];
+  const safeTasks = tasks || [];
+  const totalExpense = safeFinances.filter(f => f.type === 'expense').reduce((sum, f) => sum + f.amount, 0);
+  const completedTasks = safeTasks.filter(t => t.status === 'completed');
+  const pendingTasks = safeTasks.filter(t => t.status === 'pending');
 
   const userPrompt = `
 Date: ${currentDay?.date || "today"}
 Sleep: ${currentDay?.sleepHours || 7.5} hours (${currentDay?.sleepQuality || 'good'} quality)
 Steps: ${currentDay?.steps || 0} steps
 Workout: ${currentDay?.workoutMinutes || 0} minutes
-Water: ${currentDay?.waterIntake || 1200} ml
 Mood: ${currentDay?.directMood || 'neutral'}
 Tasks: ${completedTasks.length} completed, ${pendingTasks.length} pending.
 Completed Task Names: ${completedTasks.map(t => t.text).join(', ') || 'none'}
 Pending Task Names: ${pendingTasks.map(t => t.text).join(', ') || 'none'}
 Total Expense: Rp ${totalExpense.toLocaleString('id-ID')}
-Transactions: ${finances.map(f => `${f.description} (Rp ${f.amount})`).join(', ') || 'none'}
+Transactions: ${safeFinances.map(f => `${f.description} (Rp ${f.amount})`).join(', ') || 'none'}
 `;
 
   try {
@@ -552,19 +676,24 @@ Use rich Markdown inside the response (bolding, lists). Keep it punchy and clear
     required: ["recommendation", "coachingTips"]
   };
 
-  const totalExpense = finances.filter(f => f.type === 'expense').reduce((sum, f) => sum + f.amount, 0);
-  const totalIncome = finances.filter(f => f.type === 'income').reduce((sum, f) => sum + f.amount, 0);
-  const totalAssets = assets.reduce((sum, a) => sum + a.balance, 0);
-  const totalSavings = savings.reduce((sum, s) => sum + s.currentAmount, 0);
-  const totalDebts = debts.filter(d => !d.paid).reduce((sum, d) => sum + d.amount, 0);
+  const safeFinances = finances || [];
+  const safeAssets = assets || [];
+  const safeSavings = savings || [];
+  const safeDebts = debts || [];
+  
+  const totalExpense = safeFinances.filter(f => f.type === 'expense').reduce((sum, f) => sum + f.amount, 0);
+  const totalIncome = safeFinances.filter(f => f.type === 'income').reduce((sum, f) => sum + f.amount, 0);
+  const totalAssets = safeAssets.reduce((sum, a) => sum + a.balance, 0);
+  const totalSavings = safeSavings.reduce((sum, s) => sum + (s.currentAmount || 0), 0);
+  const totalDebts = safeDebts.filter(d => !d.paid).reduce((sum, d) => sum + d.amount, 0);
 
   const userPrompt = `
 Daily Expenses: Rp ${totalExpense.toLocaleString('id-ID')}
 Daily Income: Rp ${totalIncome.toLocaleString('id-ID')}
-Total Account Balances: Rp ${totalAssets.toLocaleString('id-ID')} (Assets: ${JSON.stringify(assets)})
-Active Savings: ${JSON.stringify(savings)} (Total: Rp ${totalSavings.toLocaleString('id-ID')})
-Active Debts: ${JSON.stringify(debts)} (Total: Rp ${totalDebts.toLocaleString('id-ID')})
-Financial Goals: ${JSON.stringify(goals)}
+Total Account Balances: Rp ${totalAssets.toLocaleString('id-ID')} (Assets: ${JSON.stringify(safeAssets)})
+Active Savings: ${JSON.stringify(safeSavings)} (Total: Rp ${totalSavings.toLocaleString('id-ID')})
+Active Debts: ${JSON.stringify(safeDebts)} (Total: Rp ${totalDebts.toLocaleString('id-ID')})
+Financial Goals: ${JSON.stringify(goals || [])}
 `;
 
   try {

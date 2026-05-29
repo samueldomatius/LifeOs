@@ -66,8 +66,14 @@ export default function FinanceManager({
   const [aiAdviceData, setAiAdviceData] = useState(null);
   const [isLoadingAdvice, setIsLoadingAdvice] = useState(false);
 
-  // Month navigation for Monthly calendar overview (March 2026 default)
-  const [currentYearMonth, setCurrentYearMonth] = useState('2026-03');
+  // Month navigation for Monthly calendar overview
+  const [currentYearMonth, setCurrentYearMonth] = useState(() => selectedDate ? selectedDate.substring(0, 7) : '2026-05');
+
+  useEffect(() => {
+    if (selectedDate) {
+      setCurrentYearMonth(selectedDate.substring(0, 7));
+    }
+  }, [selectedDate]);
 
   // Load weekly trends
   const last7Days = history ? history.slice(-7) : [];
@@ -256,6 +262,7 @@ export default function FinanceManager({
       setAiAdviceData(result);
     } catch(e) {
       console.error(e);
+      alert(`😢 Gagal menghubungi AI Advisor: ${e.message}. Silakan coba beberapa saat lagi, bestie!`);
     }
     setIsLoadingAdvice(false);
   };
@@ -314,6 +321,14 @@ export default function FinanceManager({
         
         {activeTab === 'summary' && (
           <>
+            {/* Total Saldo Card */}
+            <div className="glass-panel volt-card" style={{ background: 'linear-gradient(135deg, rgba(34, 211, 238, 0.06), rgba(0, 0, 0, 0.3))', border: '1px solid rgba(34, 211, 238, 0.15)', color: '#fff', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.6)', fontWeight: 'bold', textTransform: 'uppercase' }}>Total Saldo Akun (Dompet)</span>
+              <h2 style={{ color: (assets || []).reduce((sum, a) => sum + (a.balance || 0), 0) >= 0 ? 'var(--accent-volt)' : 'var(--accent-coral)', fontSize: '1.45rem', margin: '4px 0 0 0', fontWeight: '800' }}>
+                Rp {(assets || []).reduce((sum, a) => sum + (a.balance || 0), 0).toLocaleString('id-ID')}
+              </h2>
+            </div>
+
             {/* Allowance & Edit Limit section */}
             <div className="glass-panel volt-card" style={{ background: '#120e24', border: '1px solid rgba(255, 255, 255, 0.08)', color: '#fff', padding: '1.25rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -413,8 +428,46 @@ export default function FinanceManager({
               <input type="text" className="task-input" placeholder="Deskripsi manual... (e.g. Nasi Padang)" value={txnDesc} onChange={(e) => setTxnDesc(e.target.value)} required />
               <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                 <input type="number" className="task-input" placeholder="Nominal (Rp)" value={txnAmount} onChange={(e) => setTxnAmount(e.target.value)} required style={{ flex: '1 1 120px' }} />
-                <select className="select-input" value={txnType} onChange={(e) => setTxnType(e.target.value)} style={{ flex: '1 1 80px' }}><option value="expense">Expense</option><option value="income">Income</option></select>
-                <select className="select-input" value={txnCategory} onChange={(e) => setTxnCategory(e.target.value)} style={{ flex: '1 1 110px' }}><option value="Caffeine/Food">☕ Makanan & Kopi</option><option value="Impulse/Lifestyle">🛍️ Belanja Impulsif</option><option value="Travel">🚗 Transportasi</option><option value="Other">📦 Lainnya</option></select>
+                <select 
+                  className="select-input" 
+                  value={txnType} 
+                  onChange={(e) => {
+                    const nextType = e.target.value;
+                    setTxnType(nextType);
+                    if (nextType === 'income') {
+                      setTxnCategory('Salary');
+                    } else {
+                      setTxnCategory('Caffeine/Food');
+                    }
+                  }} 
+                  style={{ flex: '1 1 80px' }}
+                >
+                  <option value="expense">Expense</option>
+                  <option value="income">Income</option>
+                </select>
+                <select 
+                  className="select-input" 
+                  value={txnCategory} 
+                  onChange={(e) => setTxnCategory(e.target.value)} 
+                  style={{ flex: '1 1 110px' }}
+                >
+                  {txnType === 'income' ? (
+                    <>
+                      <option value="Salary">💵 Gaji & Bulanan</option>
+                      <option value="Freelance">💻 Freelance & Proyek</option>
+                      <option value="Investment">📈 Investasi</option>
+                      <option value="Gift">🎁 Hadiah & Hibah</option>
+                      <option value="Other">📦 Lainnya</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="Caffeine/Food">☕ Makanan & Kopi</option>
+                      <option value="Impulse/Lifestyle">🛍️ Belanja Impulsif</option>
+                      <option value="Travel">🚗 Transportasi</option>
+                      <option value="Other">📦 Lainnya</option>
+                    </>
+                  )}
+                </select>
                 {assets && assets.length > 0 && <select className="select-input" value={txnAssetId} onChange={(e) => setTxnAssetId(e.target.value)} style={{ flex: '1 1 110px' }}>{assets.map(a => <option key={a.id} value={a.id}>💳 {a.name}</option>)}</select>}
                 <button type="submit" className="primary-btn" style={{ flex: '1 1 60px' }}>Log</button>
               </div>
@@ -429,8 +482,60 @@ export default function FinanceManager({
                     {isEditing ? (
                       <form onSubmit={(e) => { e.preventDefault(); onUpdateTransaction(f.id, { description: editTxnDesc, amount: parseFloat(editTxnAmount), type: editTxnType, category: editTxnCategory, assetId: editTxnAssetId }); setEditingTxnId(null); }} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <input type="text" className="task-input" value={editTxnDesc} onChange={(e) => setEditTxnDesc(e.target.value)} required />
-                        <div style={{ display: 'flex', gap: '0.3rem' }}><input type="number" className="task-input" value={editTxnAmount} onChange={(e) => setEditTxnAmount(e.target.value)} required style={{ flex: 1 }} /><select className="select-input" value={editTxnType} onChange={(e) => setEditTxnType(e.target.value)} style={{ flex: 1 }}><option value="expense">Expense</option><option value="income">Income</option></select></div>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}><button type="submit" className="primary-btn" style={{ padding: '4px 10px', fontSize: '0.7rem' }}>Simpan</button><button type="button" onClick={() => setEditingTxnId(null)} className="primary-btn" style={{ padding: '4px 10px', fontSize: '0.7rem', background: 'var(--bg-pill)', color: 'var(--text-primary)' }}>Batal</button></div>
+                        <div style={{ display: 'flex', gap: '0.3rem' }}>
+                          <input type="number" className="task-input" value={editTxnAmount} onChange={(e) => setEditTxnAmount(e.target.value)} required style={{ flex: 1 }} />
+                          <select 
+                            className="select-input" 
+                            value={editTxnType} 
+                            onChange={(e) => {
+                              const nextEditType = e.target.value;
+                              setEditTxnType(nextEditType);
+                              if (nextEditType === 'income') {
+                                setEditTxnCategory('Salary');
+                              } else {
+                                setEditTxnCategory('Caffeine/Food');
+                              }
+                            }} 
+                            style={{ flex: 1 }}
+                          >
+                            <option value="expense">Expense</option>
+                            <option value="income">Income</option>
+                          </select>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.3rem' }}>
+                          <select 
+                            className="select-input" 
+                            value={editTxnCategory} 
+                            onChange={(e) => setEditTxnCategory(e.target.value)} 
+                            style={{ flex: 1 }}
+                          >
+                            {editTxnType === 'income' ? (
+                              <>
+                                <option value="Salary">💵 Gaji & Bulanan</option>
+                                <option value="Freelance">💻 Freelance & Proyek</option>
+                                <option value="Investment">📈 Investasi</option>
+                                <option value="Gift">🎁 Hadiah & Hibah</option>
+                                <option value="Other">📦 Lainnya</option>
+                              </>
+                            ) : (
+                              <>
+                                <option value="Caffeine/Food">☕ Makanan & Kopi</option>
+                                <option value="Impulse/Lifestyle">🛍️ Belanja Impulsif</option>
+                                <option value="Travel">🚗 Transportasi</option>
+                                <option value="Other">📦 Lainnya</option>
+                              </>
+                            )}
+                          </select>
+                          {assets && assets.length > 0 && (
+                            <select className="select-input" value={editTxnAssetId} onChange={(e) => setEditTxnAssetId(e.target.value)} style={{ flex: 1 }}>
+                              {assets.map(a => <option key={a.id} value={a.id}>💳 {a.name}</option>)}
+                            </select>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                          <button type="submit" className="primary-btn" style={{ padding: '4px 10px', fontSize: '0.7rem' }}>Simpan</button>
+                          <button type="button" onClick={() => setEditingTxnId(null)} className="primary-btn" style={{ padding: '4px 10px', fontSize: '0.7rem', background: 'var(--bg-pill)', color: 'var(--text-primary)' }}>Batal</button>
+                        </div>
                       </form>
                     ) : (
                       <>
@@ -660,7 +765,7 @@ export default function FinanceManager({
                 {/* AI Financial Coaching Tips */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <span style={{ fontWeight: 'bold', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Action Tips Keuangan:</span>
-                  {aiAdviceData.coachingTips.map((tip, idx) => (
+                  {(aiAdviceData.coachingTips || []).map((tip, idx) => (
                     <div 
                       key={idx} 
                       style={{ 

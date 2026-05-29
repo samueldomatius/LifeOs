@@ -665,6 +665,7 @@ span, p, input, select {
 
 .upcoming-subcard {
   min-width: 148px;
+  flex-shrink: 0;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;

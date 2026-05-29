@@ -6,7 +6,8 @@ export default function AssetsManager({
   onAddAsset, 
   onUpdateAssetBalance, 
   onDeleteAsset,
-  finances 
+  finances,
+  savings = []
 }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
@@ -16,6 +17,8 @@ export default function AssetsManager({
   const [editBalance, setEditBalance] = useState('');
 
   const totalAssets = assets.reduce((sum, a) => sum + (a.balance || 0), 0);
+  const totalSavings = savings.reduce((sum, s) => sum + (s.currentAmount || 0), 0);
+  const netWorth = totalAssets + totalSavings;
 
   const handleAddSubmit = (e) => {
     e.preventDefault();
@@ -49,8 +52,11 @@ export default function AssetsManager({
         {/* Balance card */}
         <div className="glass-panel volt-card" style={{ background: '#120e24', border: '1px solid rgba(255, 255, 255, 0.08)', color: '#fff', display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.6)', fontWeight: 'bold', textTransform: 'uppercase' }}>Total Kekayaan Bersih</span>
-          <h2 style={{ color: '#fff', fontSize: '1.6rem' }}>Rp {totalAssets.toLocaleString('id-ID')}</h2>
-          <span style={{ fontSize: '0.6rem', color: 'var(--accent-volt)', marginTop: '4px' }}>Tersinkronisasi otomatis dengan transaksi keuangan Anda.</span>
+          <h2 style={{ color: '#fff', fontSize: '1.6rem' }}>Rp {netWorth.toLocaleString('id-ID')}</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'rgba(255,255,255,0.6)', marginTop: '4px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '4px' }}>
+            <span>Dompet/Cash: Rp {totalAssets.toLocaleString('id-ID')}</span>
+            <span>Tabungan Impian: Rp {totalSavings.toLocaleString('id-ID')}</span>
+          </div>
         </div>
 
         {/* Add Asset Form trigger */}

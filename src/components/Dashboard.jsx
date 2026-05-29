@@ -62,7 +62,7 @@ export default function Dashboard({ finalScore, breakdown, aiExplanation, getGlo
           }}>
             <div className="linear-label-row">
               <span className="linear-indicator-badge">🩺 KESEHATAN</span>
-              <span className="linear-status-text">Fisik & Air</span>
+              <span className="linear-status-text">Fisik & Tidur</span>
               <span className="linear-percentage">{breakdown.health}%</span>
             </div>
             <div className="linear-bar-background">
