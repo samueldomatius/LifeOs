@@ -83,7 +83,17 @@ export default function ProfileManager({
                     if (file) {
                       const reader = new FileReader();
                       reader.onloadend = () => {
-                        setEditAvatar(reader.result);
+                        const img = new Image();
+                        img.src = reader.result;
+                        img.onload = () => {
+                          const canvas = document.createElement('canvas');
+                          const ctx = canvas.getContext('2d');
+                          canvas.width = 150;
+                          canvas.height = 150;
+                          ctx.drawImage(img, 0, 0, 150, 150);
+                          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                          setEditAvatar(compressedBase64);
+                        };
                       };
                       reader.readAsDataURL(file);
                     }

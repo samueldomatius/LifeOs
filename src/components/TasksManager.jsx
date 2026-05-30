@@ -760,7 +760,9 @@ export default function TasksManager({
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '380px', overflowY: 'auto', paddingRight: '4px' }}>
               {(() => {
-                const allTasksSorted = [...(tasks || [])].sort((a, b) => (b.dueDate || '').localeCompare(a.dueDate || ''));
+                const allTasksSorted = [...(tasks || [])]
+                  .filter(t => t && typeof t === 'object' && t.dueDate && typeof t.dueDate === 'string')
+                  .sort((a, b) => b.dueDate.localeCompare(a.dueDate));
                 if (allTasksSorted.length === 0) {
                   return <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0, fontStyle: 'italic' }}>Belum ada data tugas sama sekali.</p>;
                 }
