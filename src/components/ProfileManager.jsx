@@ -16,7 +16,7 @@ export default function ProfileManager({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(userProfile.name);
-  const [editAvatar, setEditAvatar] = useState(userProfile.avatar);
+  const [editAvatar, setEditAvatar] = useState(userProfile.avatar || '');
   const [editBio, setEditBio] = useState(userProfile.bio || '');
   const [editCustomKey, setEditCustomKey] = useState(() => {
     try {
@@ -95,7 +95,7 @@ export default function ProfileManager({
                   type="text" 
                   className="task-input" 
                   placeholder="https://..."
-                  value={editAvatar.startsWith('data:image/') ? '' : editAvatar} 
+                  value={(editAvatar && typeof editAvatar === 'string' && editAvatar.startsWith('data:image/')) ? '' : (editAvatar || '')} 
                   onChange={(e) => setEditAvatar(e.target.value)} 
                   style={{ width: '100%', fontSize: '0.75rem', padding: '5px 10px', marginTop: '2px' }}
                 />
