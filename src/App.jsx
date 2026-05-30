@@ -2195,6 +2195,7 @@ export default function App() {
           onDeleteTask={handleDeleteTask}
           onResetAllData={handleResetAllData}
           onLogout={handleLogout}
+          userId={userId}
         />
       )}
 

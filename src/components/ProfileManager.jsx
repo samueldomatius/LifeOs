@@ -11,7 +11,8 @@ export default function ProfileManager({
   onUpdateTask,
   onDeleteTask,
   onResetAllData,
-  onLogout
+  onLogout,
+  userId
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(userProfile.name);
@@ -154,9 +155,12 @@ export default function ProfileManager({
               
               <div style={{ marginTop: '4px' }}>
                 <h2 style={{ fontSize: '1.35rem', fontWeight: '900', color: 'var(--text-primary)' }}>{userProfile.name}</h2>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '4px 0 0 0', fontStyle: 'italic' }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '4px 0 2px 0', fontStyle: 'italic' }}>
                   {userProfile.bio || 'Living life on autopilot ✨'}
                 </p>
+                <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.03)', padding: '2px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', display: 'inline-block', marginTop: '6px', cursor: 'text' }}>
+                  ID Akun: {userId}
+                </div>
               </div>
               <button 
                 type="button"
