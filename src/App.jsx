@@ -530,6 +530,7 @@ export default function App() {
 
   const chatBottomRef = useRef(null);
   const timerIntervalRef = useRef(null);
+  const lastPulledUserIdRef = useRef('');
 
   // GPS Tracking States & Helpers for Strava-style Tracker
   const [isTrackingGps, setIsTrackingGps] = useState(false);
@@ -650,16 +651,38 @@ export default function App() {
         try {
           const dbData = await pullUserDataPrisma(userId);
           if (dbData) {
-            if (dbData.tasks) setTasks(dbData.tasks);
-            if (dbData.finances) setFinances(dbData.finances);
-            if (dbData.currentDay) setCurrentDay(dbData.currentDay);
-            if (dbData.assets) setAssets(dbData.assets);
-            if (dbData.savings) setSavings(dbData.savings);
-            if (dbData.debts) setDebts(dbData.debts);
-            if (dbData.history) setHistory(dbData.history);
-            if (dbData.chatHistory) setChatHistory(dbData.chatHistory);
-            if (dbData.userProfile && Object.keys(dbData.userProfile).length > 0) setUserProfile(dbData.userProfile);
+            const isDbEmpty = (!dbData.tasks || dbData.tasks.length === 0) &&
+                               (!dbData.finances || dbData.finances.length === 0) &&
+                               (!dbData.history || dbData.history.length === 0);
+            
+            const hasLocalData = tasks.length > 0 || finances.length > 0 || history.length > 0;
+
+            if (isDbEmpty && hasLocalData) {
+              const statePayload = {
+                tasks,
+                finances,
+                currentDay,
+                assets,
+                savings,
+                debts,
+                history,
+                chatHistory,
+                userProfile
+              };
+              await pushUserDataPrisma(statePayload, userId);
+            } else {
+              if (dbData.tasks) setTasks(dbData.tasks);
+              if (dbData.finances) setFinances(dbData.finances);
+              if (dbData.currentDay) setCurrentDay(dbData.currentDay);
+              if (dbData.assets) setAssets(dbData.assets);
+              if (dbData.savings) setSavings(dbData.savings);
+              if (dbData.debts) setDebts(dbData.debts);
+              if (dbData.history) setHistory(dbData.history);
+              if (dbData.chatHistory) setChatHistory(dbData.chatHistory);
+              if (dbData.userProfile && Object.keys(dbData.userProfile).length > 0) setUserProfile(dbData.userProfile);
+            }
           }
+          lastPulledUserIdRef.current = userId;
         } catch (err) {
           console.error("Initial Prisma data pull failed:", err);
         }
@@ -667,16 +690,38 @@ export default function App() {
         try {
           const dbData = await pullUserData(userId);
           if (dbData) {
-            if (dbData.tasks) setTasks(dbData.tasks);
-            if (dbData.finances) setFinances(dbData.finances);
-            if (dbData.current_day) setCurrentDay(dbData.current_day);
-            if (dbData.assets) setAssets(dbData.assets);
-            if (dbData.savings) setSavings(dbData.savings);
-            if (dbData.debts) setDebts(dbData.debts);
-            if (dbData.history) setHistory(dbData.history);
-            if (dbData.chat_history) setChatHistory(dbData.chat_history);
-            if (dbData.user_profile && Object.keys(dbData.user_profile).length > 0) setUserProfile(dbData.user_profile);
+            const isDbEmpty = (!dbData.tasks || dbData.tasks.length === 0) &&
+                               (!dbData.finances || dbData.finances.length === 0) &&
+                               (!dbData.history || dbData.history.length === 0);
+            
+            const hasLocalData = tasks.length > 0 || finances.length > 0 || history.length > 0;
+
+            if (isDbEmpty && hasLocalData) {
+              const statePayload = {
+                tasks,
+                finances,
+                currentDay,
+                assets,
+                savings,
+                debts,
+                history,
+                chatHistory,
+                userProfile
+              };
+              await pushUserData(statePayload, userId);
+            } else {
+              if (dbData.tasks) setTasks(dbData.tasks);
+              if (dbData.finances) setFinances(dbData.finances);
+              if (dbData.current_day) setCurrentDay(dbData.current_day);
+              if (dbData.assets) setAssets(dbData.assets);
+              if (dbData.savings) setSavings(dbData.savings);
+              if (dbData.debts) setDebts(dbData.debts);
+              if (dbData.history) setHistory(dbData.history);
+              if (dbData.chat_history) setChatHistory(dbData.chat_history);
+              if (dbData.user_profile && Object.keys(dbData.user_profile).length > 0) setUserProfile(dbData.user_profile);
+            }
           }
+          lastPulledUserIdRef.current = userId;
         } catch (err) {
           console.error("Initial Supabase data pull failed:", err);
         }
@@ -688,7 +733,7 @@ export default function App() {
 
   // Database Auto Sync Debounced (Prisma priority -> Supabase)
   useEffect(() => {
-    if (dbLoading) return;
+    if (dbLoading || !userId || lastPulledUserIdRef.current !== userId) return;
 
     const delayDebounce = setTimeout(async () => {
       const statePayload = {
