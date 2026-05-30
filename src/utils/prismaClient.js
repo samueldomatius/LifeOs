@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:5000';
+import { API_URL } from '../config';
 
 /**
  * Check if the Express + Prisma server is up and reachable

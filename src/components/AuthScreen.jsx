@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Compass, Mail, Lock, User, Eye, EyeOff, Sparkles, Sun, Moon } from 'lucide-react';
+import { API_URL } from '../config';
 
 export default function AuthScreen({ setUserId, setUserEmail, theme, toggleTheme }) {
   const [isRegister, setIsRegister] = useState(false);
@@ -19,7 +20,7 @@ export default function AuthScreen({ setUserId, setUserEmail, theme, toggleTheme
     const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
 
     try {
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
+      const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
