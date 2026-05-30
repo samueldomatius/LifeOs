@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, Send, Sparkles, User } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Send, Sparkles, User, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function AiChatCompanion({ 
   aiChatOpen, 
@@ -9,17 +9,22 @@ export default function AiChatCompanion({
   setChatInput, 
   handleSendChatMessage, 
   handleAcceptAIAction, 
-  chatBottomRef 
+  chatBottomRef,
+  isQuotaExceeded 
 }) {
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
   if (!aiChatOpen) return null;
 
   return (
     <div className="chat-drawer-overlay" onClick={() => setAiChatOpen(false)}>
-      <div className="chat-drawer-sheet" onClick={(e) => e.stopPropagation()}>
+      <div 
+        className="chat-drawer-sheet" 
+        onClick={(e) => e.stopPropagation()}
+        style={{ height: isFullScreen ? '92%' : '60%', padding: '1.25rem 0' }}
+      >
         
-        <div className="drawer-drag-pill"></div>
-
-        <div className="drawer-header">
+        <div className="drawer-header" style={{ paddingTop: '0.2rem', marginTop: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <div className="logo-v-icon">AI</div>
             <div>
@@ -27,13 +32,23 @@ export default function AiChatCompanion({
               <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Proaktif & Lintas-Dimensi</span>
             </div>
           </div>
-          <button className="circular-utility-btn" onClick={() => setAiChatOpen(false)}>
-            <X size={14} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button 
+              className="circular-utility-btn" 
+              onClick={() => setIsFullScreen(!isFullScreen)}
+              style={{ width: '28px', height: '28px' }}
+              title={isFullScreen ? "Kecilkan" : "Perbesar"}
+            >
+              {isFullScreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            </button>
+            <button className="circular-utility-btn" onClick={() => setAiChatOpen(false)} style={{ width: '28px', height: '28px' }}>
+              <X size={14} />
+            </button>
+          </div>
         </div>
 
         {/* Chat messages */}
-        <div className="chat-messages-scroll-block">
+        <div className="chat-messages-scroll-block" style={{ flex: 1, overflowY: 'auto' }}>
           {chatHistory.map((c, idx) => {
             const isAi = c.sender === 'ai';
             return (
@@ -73,7 +88,7 @@ export default function AiChatCompanion({
                   className={`chat-bubble-card ${isAi ? 'ai-bubble' : 'user-bubble'}`} 
                   style={{
                     flex: '0 1 82%',
-                    background: isAi ? '#1c1a24' : '#203a5c', // Obsidian dark for AI, Slate blue for User
+                    background: isAi ? '#1c1a24' : '#203a5c', 
                     border: isAi ? '1px solid rgba(255,255,255,0.03)' : '1px solid rgba(255,255,255,0.05)',
                     borderRadius: '20px',
                     padding: '12px 16px',
@@ -134,7 +149,7 @@ export default function AiChatCompanion({
                     width: '32px',
                     height: '32px',
                     borderRadius: '50%',
-                    background: '#319795', // Teal avatar matching the screenshot
+                    background: '#319795', 
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -156,12 +171,13 @@ export default function AiChatCompanion({
           <input 
             type="text" 
             className="chat-input-field task-input" 
-            placeholder="Ketik capek banget / olahraga / beli kopi 25000..."
+            placeholder={isQuotaExceeded ? "Batas kuota tercapai." : "Ketik capek banget / olahraga / beli kopi 25000..."}
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
+            disabled={isQuotaExceeded}
             style={{ fontSize: '0.85rem' }}
           />
-          <button type="submit" className="primary-btn" style={{ padding: '0.85rem 1.2rem' }}>
+          <button type="submit" className="primary-btn" disabled={isQuotaExceeded} style={{ padding: '0.85rem 1.2rem' }}>
             <Send size={14} />
           </button>
         </form>

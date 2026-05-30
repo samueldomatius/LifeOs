@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, ArrowUpRight, ArrowDownRight, Clock, ClipboardList, Wallet } from 'lucide-react';
 
 export default function CalendarWidget({ history, selectedDate, tasks, finances = [], handleSelectCalendarDay }) {
   // Parse month and year from selectedDate, fallback to current local date
@@ -143,55 +143,145 @@ export default function CalendarWidget({ history, selectedDate, tasks, finances 
         
         return (
           <div style={{
-            marginTop: '0.85rem',
-            background: 'rgba(255, 255, 255, 0.02)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
-            borderRadius: '14px',
-            padding: '10px 12px',
-            fontSize: '0.7rem',
+            marginTop: '1rem',
+            background: 'var(--bg-pill)',
+            border: '1px solid var(--card-border)',
+            borderRadius: '20px',
+            padding: '1rem',
+            fontSize: '0.75rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            boxShadow: 'var(--card-shadow)',
             animation: 'scalePopIn 0.25s ease-out'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: '#fff', marginBottom: '6px' }}>
-              <span>📝 Ringkasan Hari ({dayName}):</span>
-              <span style={{ color: 'var(--accent-volt)' }}>
-                {completedCount} Selesai | {pendingCount} Pending
-              </span>
+            {/* Header / Info Row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--card-border-inner)', paddingBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--text-primary)' }}>
+                  🗓️ Ringkasan {dayName} ({selectedDate.split('-').reverse().join('/')})
+                </span>
+              </div>
             </div>
 
-            {selectedDayTasks.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '70px', overflowY: 'auto', paddingRight: '4px', marginBottom: selectedDayFinances.length > 0 ? '8px' : '0' }}>
-                {selectedDayTasks.map(t => (
-                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: t.status === 'completed' ? 'var(--text-muted)' : 'var(--text-primary)' }}>
-                    <span style={{ color: t.status === 'completed' ? 'var(--accent-volt)' : 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1 }}>•</span>
-                    <span style={{ textDecoration: t.status === 'completed' ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {t.text}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {selectedDayFinances.length > 0 && (
-              <div style={{ borderTop: selectedDayTasks.length > 0 ? '1px dashed rgba(255, 255, 255, 0.06)' : 'none', paddingTop: selectedDayTasks.length > 0 ? '6px' : '0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: 'bold', fontSize: '0.65rem' }}>
-                  <span>💰 Transaksi Keuangan:</span>
-                  <span>
-                    {totalIncome > 0 && <span style={{ color: 'var(--accent-volt)', marginRight: '6px' }}>+{totalIncome.toLocaleString('id-ID')}</span>}
-                    {totalExpense > 0 && <span style={{ color: 'var(--accent-coral)' }}>-{totalExpense.toLocaleString('id-ID')}</span>}
+            {/* Task list section */}
+            {selectedDayTasks.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                  <span style={{ fontWeight: '800', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem' }}>
+                    <ClipboardList size={12} color="var(--accent-purple)" /> TUGAS ({selectedDayTasks.length})
+                  </span>
+                  <span style={{ color: 'var(--accent-volt-dark)', fontWeight: 'bold', fontSize: '0.65rem' }}>
+                    {completedCount} Selesai • {pendingCount} Pending
                   </span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxHeight: '60px', overflowY: 'auto', paddingRight: '4px', fontSize: '0.65rem' }}>
-                  {selectedDayFinances.map(f => (
-                    <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-primary)' }}>
-                      <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '65%' }}>{f.description}</span>
-                      <span style={{ color: f.type === 'income' ? 'var(--accent-volt)' : 'var(--accent-coral)' }}>
-                        {f.type === 'income' ? '+' : '-'}Rp {f.amount.toLocaleString('id-ID')}
-                      </span>
-                    </div>
-                  ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '110px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {selectedDayTasks.map(t => {
+                    const isTaskCompleted = t.status === 'completed';
+                    return (
+                      <div 
+                        key={t.id} 
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'space-between',
+                          padding: '6px 8px', 
+                          background: 'var(--card-bg)',
+                          border: '1px solid var(--card-border)',
+                          borderRadius: '10px',
+                          color: isTaskCompleted ? 'var(--text-muted)' : 'var(--text-primary)' 
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+                          <div style={{
+                            width: '12px',
+                            height: '12px',
+                            borderRadius: '50%',
+                            background: isTaskCompleted ? 'var(--accent-volt)' : 'none',
+                            border: `1.5px solid ${isTaskCompleted ? 'var(--accent-volt)' : 'var(--text-muted)'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            {isTaskCompleted && <Check size={8} color="#000" strokeWidth={4} />}
+                          </div>
+                          <span style={{ 
+                            textDecoration: isTaskCompleted ? 'line-through' : 'none', 
+                            overflow: 'hidden', 
+                            textOverflow: 'ellipsis', 
+                            whiteSpace: 'nowrap',
+                            fontSize: '0.72rem',
+                            fontWeight: isTaskCompleted ? 'normal' : '600'
+                          }}>
+                            {t.text}
+                          </span>
+                        </div>
+                        {t.time && (
+                          <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+                            <Clock size={8} /> {t.time}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            )}
+            ) : null}
+
+            {/* Finances section */}
+            {selectedDayFinances.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: selectedDayTasks.length > 0 ? '1px dashed var(--card-border-inner)' : 'none', paddingTop: selectedDayTasks.length > 0 ? '10px' : '0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                  <span style={{ fontWeight: '800', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem' }}>
+                    <Wallet size={12} color="var(--accent-cyan)" /> TRANSAKSI ({selectedDayFinances.length})
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px', fontSize: '0.65rem' }}>
+                    {totalIncome > 0 && <span style={{ color: 'var(--accent-volt-dark)', fontWeight: 'bold' }}>+{totalIncome.toLocaleString('id-ID')}</span>}
+                    {totalExpense > 0 && <span style={{ color: 'var(--accent-coral)', fontWeight: 'bold' }}>-{totalExpense.toLocaleString('id-ID')}</span>}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '110px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {selectedDayFinances.map(f => {
+                    const isIncome = f.type === 'income';
+                    return (
+                      <div 
+                        key={f.id} 
+                        style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center',
+                          padding: '6px 8px',
+                          background: 'var(--card-bg)',
+                          border: '1px solid var(--card-border)',
+                          borderRadius: '10px',
+                          color: 'var(--text-primary)' 
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+                          {isIncome ? (
+                            <ArrowUpRight size={10} color="var(--accent-volt-dark)" style={{ flexShrink: 0 }} />
+                          ) : (
+                            <ArrowDownRight size={10} color="var(--accent-coral)" style={{ flexShrink: 0 }} />
+                          )}
+                          <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '0.72rem' }}>
+                            {f.description}
+                          </span>
+                        </div>
+                        <span style={{ 
+                          color: isIncome ? 'var(--accent-volt-dark)' : 'var(--text-primary)',
+                          fontWeight: 'bold',
+                          fontSize: '0.72rem',
+                          flexShrink: 0
+                        }}>
+                          {isIncome ? '+' : '-'}Rp {f.amount.toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
         );
       })()}

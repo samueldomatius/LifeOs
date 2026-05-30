@@ -2,7 +2,7 @@ import React from 'react';
 import { Sparkles } from 'lucide-react';
 
 export default function Dashboard({ finalScore, breakdown, aiExplanation, getGlowColor, getGlowClass }) {
-  const radius = 35;
+  const radius = 44;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (finalScore / 100) * circumference;
 
@@ -17,7 +17,7 @@ export default function Dashboard({ finalScore, breakdown, aiExplanation, getGlo
         
         {/* SVG Circular score */}
         <div className="lqs-circle-svg-wrap">
-          <svg className="circle-lqs-svg">
+          <svg className="circle-lqs-svg" viewBox="0 0 100 100">
             <defs>
               <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stopColor="#fff" stopOpacity="0.2" />
@@ -31,11 +31,11 @@ export default function Dashboard({ finalScore, breakdown, aiExplanation, getGlo
                 </feMerge>
               </filter>
             </defs>
-            <circle className="lqs-bg-circle" cx="40" cy="40" r={radius} />
+            <circle className="lqs-bg-circle" cx="50" cy="50" r={radius} />
             <circle 
               className="lqs-bar-circle" 
-              cx="40" 
-              cy="40" 
+              cx="50" 
+              cy="50" 
               r={radius} 
               stroke={getGlowColor(finalScore)}
               strokeDasharray={circumference}

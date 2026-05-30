@@ -17,7 +17,10 @@ import {
   Target,
   Droplet,
   Bell,
-  Video
+  Video,
+  Flame,
+  Leaf,
+  Check
 } from 'lucide-react';
 
 import Header from './components/Header';
@@ -1662,7 +1665,7 @@ export default function App() {
         />
 
         {/* Friendly greeting */}
-        <section className="welcome-coach-bar" onClick={() => { setActiveScreen('profile'); setAiChatOpen(false); }} style={{ cursor: 'pointer' }}>
+        <section className="welcome-coach-bar" onClick={() => { setActiveScreen('profile'); setAiChatOpen(false); }} style={{ cursor: 'pointer', margin: '0.5rem 1rem 0.25rem 1rem' }}>
           <img 
             src={userProfile.avatar} 
             alt="User" 
@@ -1670,9 +1673,7 @@ export default function App() {
           />
           <div className="welcome-text-group">
             <h2 className="welcome-title">Halo, {userProfile.name}! ✨</h2>
-            <span className="welcome-subtitle" style={{ fontSize: '0.72rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'block', marginTop: '3px' }}>
-              🧠 Kesimpulan AI: {dailySummary?.summary || 'Menganalisis aktivitas hari ini... ⚡'}
-            </span>
+            <span className="welcome-subtitle" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Kelola profil & pengaturan akun Anda</span>
           </div>
         </section>
 
@@ -1843,57 +1844,250 @@ export default function App() {
           );
         })()}
 
-        {/* Shortcut Menu Grid */}
-        <section className="menu-grid-container">
-          <div className="section-label-row">
-            <span className="section-title-label">Menu Utama</span>
-            <button className="section-subtitle-btn" onClick={() => setActiveScreen('dashboard')}>Dashboard</button>
+        {/* Selected Date Task List */}
+        <section className="recent-activity-ledger" style={{ margin: '0 1rem 0.5rem 1rem' }}>
+          <div className="section-label-row" style={{ marginBottom: '0.65rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <span className="section-title-label" style={{ fontSize: '0.82rem', fontWeight: '800', letterSpacing: '0.3px', color: 'var(--text-primary)' }}>
+                📅 Event Tugas: {formatDateHeader(selectedDate)}
+              </span>
+              {filteredTasks.length > 0 && (() => {
+                const completedCount = filteredTasks.filter(t => t.status === 'completed').length;
+                const totalCount = filteredTasks.length;
+                const completionPercentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                    <div style={{ width: '60px', height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden' }}>
+                      <div style={{ width: `${completionPercentage}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent-volt), var(--accent-cyan))', borderRadius: '10px', transition: 'width 0.3s ease' }} />
+                    </div>
+                    <span style={{ fontSize: '0.62rem', color: 'var(--accent-volt)', fontWeight: 'bold' }}>{completionPercentage}% Selesai</span>
+                  </div>
+                );
+              })()}
+            </div>
+            <button className="section-subtitle-btn" onClick={() => setActiveScreen('tasks')}>Kelola Semua</button>
           </div>
-          
-          <div className="glass-panel volt-card menu-shortcuts-grid">
-            <button className="shortcut-item-btn" onClick={() => setActiveScreen('tasks')}>
-              <div className={`shortcut-circle-icon ${activeScreen === 'tasks' ? 'active' : ''}`}><CheckSquare size={20} /></div>
-              <span className="shortcut-label-text">Tugas</span>
-            </button>
-            <button className="shortcut-item-btn" onClick={() => setActiveScreen('finance')}>
-              <div className={`shortcut-circle-icon ${activeScreen === 'finance' ? 'active' : ''}`}><DollarSign size={20} /></div>
-              <span className="shortcut-label-text">Keuangan</span>
-            </button>
-            <button className="shortcut-item-btn" onClick={() => setActiveScreen('habits')}>
-              <div className={`shortcut-circle-icon ${activeScreen === 'habits' ? 'active' : ''}`}><Activity size={20} /></div>
-              <span className="shortcut-label-text">Habits</span>
-            </button>
-            <button className="shortcut-item-btn" onClick={() => setActiveScreen('insights')}>
-              <div className={`shortcut-circle-icon ${activeScreen === 'insights' ? 'active' : ''}`}><TrendingUp size={20} /></div>
-              <span className="shortcut-label-text">Laporan</span>
-            </button>
-            <button className="shortcut-item-btn" onClick={() => setAiChatOpen(true)}>
-              <div className="shortcut-circle-icon"><Sparkles size={20} /></div>
-              <span className="shortcut-label-text">AI Advisor</span>
-            </button>
-            <button className="shortcut-item-btn" onClick={() => setActiveScreen('assets')}>
-              <div className={`shortcut-circle-icon ${activeScreen === 'assets' ? 'active' : ''}`}><CreditCard size={18} /></div>
-              <span className="shortcut-label-text">Aset</span>
-            </button>
-            <button className="shortcut-item-btn" onClick={() => setActiveScreen('goals')}>
-              <div className={`shortcut-circle-icon ${activeScreen === 'goals' ? 'active' : ''}`}><Target size={18} /></div>
-              <span className="shortcut-label-text">Goals</span>
-            </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {(() => {
+              // Helper to check if task time is in the past
+              const isPastTime = (taskTime, taskDate) => {
+                if (!taskTime) return false;
+                const todayStr = new Date().toISOString().split('T')[0];
+                if (taskDate !== todayStr) {
+                  return taskDate < todayStr;
+                }
+                const [taskHour, taskMin] = taskTime.split(':').map(Number);
+                const now = currentTimeState || new Date();
+                const currentHour = now.getHours();
+                const currentMin = now.getMinutes();
+                
+                if (taskHour < currentHour) return true;
+                if (taskHour === currentHour && taskMin < currentMin) return true;
+                return false;
+              };
+
+              // Sort tasks: Active & Future first, then Past Pending, then Completed.
+              const sortedTasks = [...filteredTasks].sort((a, b) => {
+                const aComp = a.status === 'completed';
+                const bComp = b.status === 'completed';
+                if (aComp !== bComp) return aComp ? 1 : -1;
+
+                const aPast = isPastTime(a.time, a.dueDate);
+                const bPast = isPastTime(b.time, b.dueDate);
+                
+                // If both are same completion status:
+                // Pending & Not Past first, Pending & Past second
+                if (!aComp) {
+                  if (aPast !== bPast) return aPast ? 1 : -1;
+                }
+                
+                // Sort by time
+                if (a.time && b.time) return a.time.localeCompare(b.time);
+                if (a.time) return -1;
+                if (b.time) return 1;
+                return 0;
+              });
+
+              return sortedTasks.map(t => {
+                const isCompleted = t.status === 'completed';
+                const isPast = isPastTime(t.time, t.dueDate) && !isCompleted;
+                
+                let categoryColor = 'var(--accent-orange)';
+                let categoryBg = 'rgba(249, 115, 22, 0.08)';
+                let categoryBorder = 'rgba(249, 115, 22, 0.2)';
+
+                if (t.tag === 'Productivity') {
+                  categoryColor = 'rgba(168, 85, 247, 1)';
+                  categoryBg = 'rgba(168, 85, 247, 0.08)';
+                  categoryBorder = 'rgba(168, 85, 247, 0.25)';
+                } else if (t.tag === 'Health') {
+                  categoryColor = 'rgba(34, 197, 94, 1)';
+                  categoryBg = 'rgba(34, 197, 94, 0.08)';
+                  categoryBorder = 'rgba(34, 197, 94, 0.25)';
+                } else if (t.tag === 'Finance') {
+                  categoryColor = 'var(--accent-cyan)';
+                  categoryBg = 'rgba(34, 211, 238, 0.08)';
+                  categoryBorder = 'rgba(34, 211, 238, 0.25)';
+                }
+
+                // Add premium styling to look "not templatey"
+                return (
+                  <div 
+                    key={t.id} 
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '0.75rem 1rem',
+                      background: isCompleted 
+                        ? 'var(--bg-pill)' 
+                        : isPast 
+                          ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.08), var(--card-bg))'
+                          : 'var(--card-bg)',
+                      border: isPast 
+                        ? '1px solid rgba(239, 68, 68, 0.25)' 
+                        : isCompleted
+                          ? '1px solid var(--card-border-inner)'
+                          : '1px solid var(--card-border)',
+                      borderLeft: `4px solid ${isPast ? 'var(--accent-coral)' : categoryColor}`,
+                      borderRadius: '16px',
+                      transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                      boxShadow: isCompleted 
+                        ? 'none' 
+                        : isPast 
+                          ? '0 4px 16px rgba(239, 68, 68, 0.05)'
+                          : 'var(--card-shadow), inset 0 1px 0 rgba(255,255,255,0.05)',
+                      opacity: isCompleted ? 0.5 : 1,
+                      transform: isCompleted ? 'scale(0.97)' : 'scale(1)',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {/* Glow design decoration */}
+                    {!isCompleted && !isPast && (
+                      <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        background: `radial-gradient(circle at 0% 50%, ${categoryColor}15, transparent 40%)`,
+                        pointerEvents: 'none'
+                      }} />
+                    )}
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0, zIndex: 1 }}>
+                      <div 
+                        onClick={() => toggleTaskStatus(t.id)}
+                        style={{
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '50%',
+                          border: `2px solid ${isCompleted ? categoryColor : isPast ? 'var(--accent-coral)' : 'var(--text-muted)'}`,
+                          background: isCompleted ? categoryColor : 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          flexShrink: 0,
+                          boxShadow: !isCompleted && !isPast ? `0 0 8px ${categoryColor}20` : 'none'
+                        }}
+                      >
+                        {isCompleted && <Check size={12} color="#000" strokeWidth={3} />}
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, flex: 1 }}>
+                        <span 
+                          style={{ 
+                            fontSize: '0.85rem', 
+                            fontWeight: 650, 
+                            color: isCompleted ? 'var(--text-muted)' : 'var(--text-primary)',
+                            textDecoration: isCompleted ? 'line-through' : 'none',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            letterSpacing: '0.1px'
+                          }}
+                        >
+                          {t.text}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span style={{
+                            background: categoryBg,
+                            color: categoryColor,
+                            border: `1px solid ${categoryBorder}`,
+                            padding: '0.1rem 0.35rem',
+                            borderRadius: '6px',
+                            fontSize: '0.62rem',
+                            fontWeight: 'bold',
+                            letterSpacing: '0.2px'
+                          }}>
+                            {t.tag}
+                          </span>
+                          {t.time && (
+                            <span style={{ 
+                              fontSize: '0.62rem', 
+                              color: isPast ? 'var(--accent-coral)' : 'var(--text-muted)', 
+                              fontWeight: isPast ? 'bold' : 'normal',
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '2px' 
+                            }}>
+                              <Clock size={9} /> {isPast ? `Terlewat (${t.time})` : t.time}
+                            </span>
+                          )}
+                          <span style={{
+                            fontSize: '0.62rem',
+                            color: t.priority === 'high' ? 'var(--accent-coral)' : 'var(--accent-orange)',
+                            fontWeight: 'bold'
+                          }}>
+                            {t.priority.toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {!isCompleted && (
+                      <button 
+                        onClick={() => handleSnoozeTask(t.id)}
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '26px',
+                          height: '26px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: isPast ? 'var(--accent-coral)' : 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          zIndex: 1
+                        }}
+                      >
+                        <Clock size={11} />
+                      </button>
+                    )}
+                  </div>
+                );
+              });
+            })()}
+            {filteredTasks.length === 0 && (
+              <div style={{ 
+                textAlign: 'center', 
+                padding: '1rem', 
+                background: 'linear-gradient(135deg, rgba(25, 25, 35, 0.4), rgba(15, 15, 20, 0.6))',
+                border: '1px dashed var(--card-border)',
+                borderRadius: '14px',
+                color: 'var(--text-muted)', 
+                fontSize: '0.75rem' 
+              }}>
+                ☕ Belum ada event tugas terdaftar hari ini.
+              </div>
+            )}
           </div>
         </section>
-
-        {/* Dashboard index */}
-        <Dashboard 
-          finalScore={finalScore}
-          breakdown={breakdown}
-          aiExplanation={aiExplanation}
-          getGlowColor={getGlowColor}
-          getGlowClass={getGlowClass}
-          isQuotaExceeded={isQuotaExceeded}
-        />
-
-        {/* Gamified Growth Garden */}
-        <GrowthGarden tasks={tasks} savings={savings} currentDay={currentDay} />
 
         {/* Calendar Widget */}
         <CalendarWidget 
@@ -1903,6 +2097,27 @@ export default function App() {
           finances={finances}
           handleSelectCalendarDay={handleSelectCalendarDay}
         />
+
+        {/* Dashboard index (LQS Widget is now the Homepage Hero at the very top) */}
+        <Dashboard 
+          finalScore={finalScore}
+          breakdown={breakdown}
+          aiExplanation={aiExplanation}
+          getGlowColor={getGlowColor}
+          getGlowClass={getGlowClass}
+          isQuotaExceeded={isQuotaExceeded}
+        />
+
+        {/* Prominent AI Summary Card */}
+        <section className="ai-summary-card glass-panel volt-card" style={{ margin: '0 1rem 0.5rem 1rem', padding: '1.25rem', borderLeft: '4px solid var(--accent-cyan)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <Sparkles size={16} color="var(--accent-cyan)" />
+            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Kesimpulan AI Hari Ini</span>
+          </div>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+            {dailySummary?.summary || 'Menganalisis aktivitas dan perkembangan hari ini... ⚡'}
+          </p>
+        </section>
 
         {/* Demand Sliders summary */}
         <section className="upcoming-habits-scroll-box">
@@ -1999,77 +2214,73 @@ export default function App() {
             )}
           </div>
         </section>
-
-        {/* Selected Date Task List */}
-        <section className="recent-activity-ledger">
-          <div className="section-label-row">
-            <span className="section-title-label">Event Tugas: {formatDateHeader(selectedDate)}</span>
-            <button className="section-subtitle-btn" onClick={() => setActiveScreen('tasks')}>Kelola Semua</button>
-          </div>
-          {filteredTasks.map(t => (
-            <div className="recent-row-item" key={t.id} style={{ opacity: t.status === 'completed' ? 0.6 : 1 }}>
-              <div className="row-item-left">
-                <div 
-                  style={{ width: '18px', height: '18px', border: '2px solid var(--text-secondary)', borderRadius: '6px', background: t.status === 'completed' ? 'var(--accent-volt-dark)' : 'none', cursor: 'pointer' }}
-                  onClick={() => toggleTaskStatus(t.id)}
-                />
-                <div className="row-item-text-stack">
-                  <span className="row-item-title" style={{ textDecoration: t.status === 'completed' ? 'line-through' : 'none' }}>{t.text}</span>
-                  <span className="row-item-meta">{t.tag} • Priority: {t.priority}</span>
-                </div>
-              </div>
-              {t.status !== 'completed' && (
-                <button className="shortcut-circle-icon" style={{ width: '28px', height: '28px', background: 'none', border: 'none' }} onClick={() => handleSnoozeTask(t.id)}><Clock size={12} /></button>
-              )}
-            </div>
-          ))}
-          {filteredTasks.length === 0 && (
-            <p style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-              Belum ada event tugas terdaftar hari ini.
-            </p>
-          )}
-
-          {/* Section Separator for Finances */}
-          <div className="section-label-row" style={{ marginTop: '1.5rem', borderTop: '1px dashed var(--card-border)', paddingTop: '1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-            <span className="section-title-label">💸 Pengeluaran Hari Ini</span>
-            <button className="section-subtitle-btn" onClick={() => setActiveScreen('finance')}>Kelola Semua</button>
-          </div>
-
-          {/* Expenses */}
-          {filteredFinances.map(f => (
-            <div className="recent-row-item" key={f.id}>
-              <div className="row-item-left">
-                <div className="row-item-circle-icon">
-                  {f.type === 'income' ? (
-                    <ArrowUpRight size={14} color="var(--accent-volt-dark)" />
-                  ) : (
-                    <ArrowDownRight size={14} color="var(--accent-coral)" />
-                  )}
-                </div>
-                <div className="row-item-text-stack">
-                  <span className="row-item-title">{f.description}</span>
-                  <span className="row-item-meta">{f.category} • {f.timestamp}</span>
-                </div>
-              </div>
-              <span className={`row-item-value-badge ${f.type === 'income' ? 'positive' : 'negative'}`} style={{ color: f.type === 'income' ? 'var(--accent-volt-dark)' : 'var(--text-primary)' }}>
-                {f.type === 'income' ? '+' : '-'}Rp {f.amount.toLocaleString('id-ID')}
-              </span>
-            </div>
-          ))}
-        </section>
-
       </div>
 
       {/* Floating Capsule Navbar */}
       <nav className="floating-capsule-navbar theme-transition">
-        <button className={`capsule-nav-btn ${activeScreen === 'dashboard' ? 'active' : ''}`} onClick={() => { setActiveScreen('dashboard'); setAiChatOpen(false); }}><Compass size={22} /></button>
-        <button className={`capsule-nav-btn ${activeScreen === 'tasks' ? 'active' : ''}`} onClick={() => { setActiveScreen('tasks'); setAiChatOpen(false); }}><CheckSquare size={22} /></button>
-        <button className="phone-notch-pill-btn" onClick={() => setAiChatOpen(true)}><Plus size={26} /></button>
-        <button className={`capsule-nav-btn ${activeScreen === 'finance' ? 'active' : ''}`} onClick={() => { setActiveScreen('finance'); setAiChatOpen(false); }}><DollarSign size={22} /></button>
-        <button className={`capsule-nav-btn ${activeScreen === 'habits' ? 'active' : ''}`} onClick={() => { setActiveScreen('habits'); setAiChatOpen(false); }}><Activity size={22} /></button>
+        <button className={`capsule-nav-btn ${activeScreen === 'dashboard' ? 'active' : ''}`} onClick={() => { setActiveScreen('dashboard'); setAiChatOpen(false); }}>
+          <Compass size={20} />
+          <span style={{ fontSize: '10px', marginTop: '2px', color: 'inherit', fontWeight: 'bold' }}>Beranda</span>
+        </button>
+        <button className={`capsule-nav-btn ${activeScreen === 'tasks' ? 'active' : ''}`} onClick={() => { setActiveScreen('tasks'); setAiChatOpen(false); }}>
+          <CheckSquare size={20} />
+          <span style={{ fontSize: '10px', marginTop: '2px', color: 'inherit', fontWeight: 'bold' }}>Tugas</span>
+        </button>
+        <button 
+          className={`phone-notch-pill-btn ${activeScreen === 'garden' ? 'active' : ''}`} 
+          onClick={() => { setActiveScreen('garden'); setAiChatOpen(false); }}
+          style={{
+            background: isStreakActive ? 'linear-gradient(135deg, var(--accent-orange), #ff477e)' : 'linear-gradient(135deg, var(--accent-volt), #d4ff00)',
+            boxShadow: isStreakActive ? '0 0 15px rgba(251, 146, 60, 0.4)' : 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#000',
+            position: 'relative'
+          }}
+          title="Pohon Kehidupan & Streak Api"
+        >
+          {isStreakActive ? <Flame size={20} fill="#000" /> : <Leaf size={20} fill="#000" />}
+          {streakCount > 0 && (
+            <span style={{ fontSize: '8px', fontWeight: '900', position: 'absolute', bottom: '2px', color: '#000' }}>
+              {streakCount}H
+            </span>
+          )}
+        </button>
+        <button className={`capsule-nav-btn ${activeScreen === 'finance' ? 'active' : ''}`} onClick={() => { setActiveScreen('finance'); setAiChatOpen(false); }}>
+          <DollarSign size={20} />
+          <span style={{ fontSize: '10px', marginTop: '2px', color: 'inherit', fontWeight: 'bold' }}>Dompet</span>
+        </button>
+        <button className={`capsule-nav-btn ${activeScreen === 'habits' ? 'active' : ''}`} onClick={() => { setActiveScreen('habits'); setAiChatOpen(false); }}>
+          <Activity size={20} />
+          <span style={{ fontSize: '10px', marginTop: '2px', color: 'inherit', fontWeight: 'bold' }}>Laporan</span>
+        </button>
       </nav>
 
+      {/* Persistent Floating Action Button (FAB) for AI Advisor */}
+      <button 
+        className="ai-advisor-fab"
+        onClick={() => setAiChatOpen(true)}
+        title="Tanya AI Advisor"
+      >
+        <Sparkles size={20} className="spinning-ai-star" />
+        {chatHistory.length > 0 && chatHistory[chatHistory.length - 1].sender === 'ai' && !aiChatOpen && (
+          <div className="ai-fab-badge" />
+        )}
+      </button>
+
       {/* Overlays Panels */}
+      {activeScreen === 'garden' && (
+        <GrowthGarden 
+          tasks={tasks}
+          savings={savings}
+          currentDay={currentDay}
+          streakCount={streakCount}
+          isStreakActive={isStreakActive}
+        />
+      )}
+
       {activeScreen === 'tasks' && (
         <TasksManager 
           tasks={tasks}

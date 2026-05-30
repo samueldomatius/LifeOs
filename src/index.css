@@ -135,7 +135,7 @@ body {
 .phone-screen {
   flex: 1;
   overflow-y: auto;
-  padding: 1.5rem 1.25rem 110px 1.25rem;
+  padding: 1.5rem 1.25rem 90px 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -369,8 +369,8 @@ span, p, input, select {
 }
 
 .lqs-circle-svg-wrap {
-  width: 95px;
-  height: 95px;
+  width: 110px;
+  height: 110px;
   position: relative;
   display: flex;
   align-items: center;
@@ -430,7 +430,7 @@ span, p, input, select {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: 1.2rem;
 }
 
 .progress-linear-item {
@@ -857,7 +857,7 @@ span, p, input, select {
   background: var(--bg-main);
   z-index: 2500;
   animation: slidePanelIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  padding: 1.5rem 1.25rem 100px 1.25rem;
+  padding: 1.5rem 1.25rem 80px 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -1003,20 +1003,30 @@ span, p, input, select {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem;
 }
 
 .chat-drawer-sheet {
   background: var(--card-bg-solid);
   border-radius: 30px;
-  width: 95%;
+  width: calc(100% - 2.5rem);
   max-width: 440px;
-  height: 75%;
+  height: 60%;
   border: 1px solid var(--card-border);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45);
-  animation: scalePopIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+  animation: scalePopIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  margin: auto;
+}
+
+@keyframes slideUpSheet {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 @keyframes scalePopIn {
@@ -1270,4 +1280,47 @@ span, p, input, select {
 
 .spinning-ai-star {
   animation: spin 3s linear infinite;
+}
+
+/* Persistent AI FAB styling */
+.ai-advisor-fab {
+  position: fixed;
+  bottom: 7.2rem;
+  right: 1.5rem;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #c084fc, #8b5cf6);
+  border: 1px solid rgba(255,255,255,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  cursor: pointer;
+  z-index: 2900;
+  box-shadow: 0 8px 25px rgba(139, 92, 246, 0.45);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ai-advisor-fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 10px 30px rgba(139, 92, 246, 0.65);
+}
+
+.ai-fab-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  background: var(--accent-coral);
+  border: 1.5px solid var(--card-bg-solid);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--accent-coral);
+}
+
+@media (min-width: 480px) {
+  .ai-advisor-fab {
+    right: calc(50% - 225px);
+  }
 }

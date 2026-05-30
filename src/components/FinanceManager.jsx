@@ -31,6 +31,7 @@ export default function FinanceManager({
   finances
 }) {
   const [activeTab, setActiveTab] = useState('summary'); // 'summary', 'savings_debts', 'monthly_cal', 'ai_advice'
+  const [showTxnSheet, setShowTxnSheet] = useState(false);
   
   // Spend cap states
   const spendCapGoal = goals ? goals.find(g => g.type === 'spend_cap') : null;
@@ -416,62 +417,169 @@ export default function FinanceManager({
               </div>
             </div>
 
-            {/* AI Receipt scanner & forms */}
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button type="button" className="primary-btn" onClick={handleScanClick} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: 'linear-gradient(135deg, var(--accent-volt), var(--accent-cyan))', color: '#000' }}>
-                <Camera size={16} /> Scan Nota via AI 📸
+            {/* Trigger Button for Transaction Bottom Sheet & AI Scan */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <button 
+                type="button" 
+                className="primary-btn" 
+                onClick={() => setShowTxnSheet(true)} 
+                style={{ flex: 1, padding: '12px', borderRadius: '14px', background: 'var(--accent-volt)', color: '#000', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+              >
+                <Plus size={16} /> Tambah Transaksi baru
+              </button>
+              <button 
+                type="button" 
+                className="primary-btn" 
+                onClick={handleScanClick} 
+                style={{ padding: '12px', background: 'var(--bg-pill)', border: '1px solid var(--card-border-inner)', color: 'var(--text-primary)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Scan Struk Belanja"
+              >
+                <Camera size={16} />
               </button>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" style={{ display: 'none' }} />
             </div>
 
-            <form onSubmit={handleAddTransaction} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <input type="text" className="task-input" placeholder="Deskripsi manual... (e.g. Nasi Padang)" value={txnDesc} onChange={(e) => setTxnDesc(e.target.value)} required />
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                <input type="number" className="task-input" placeholder="Nominal (Rp)" value={txnAmount} onChange={(e) => setTxnAmount(e.target.value)} required style={{ flex: '1 1 120px' }} />
-                <select 
-                  className="select-input" 
-                  value={txnType} 
-                  onChange={(e) => {
-                    const nextType = e.target.value;
-                    setTxnType(nextType);
-                    if (nextType === 'income') {
-                      setTxnCategory('Salary');
-                    } else {
-                      setTxnCategory('Caffeine/Food');
-                    }
-                  }} 
-                  style={{ flex: '1 1 80px' }}
+            {/* Single Bottom Sheet Overlay for Transaction Input */}
+            {showTxnSheet && (
+              <div className="chat-drawer-overlay" onClick={() => setShowTxnSheet(false)} style={{ zIndex: 5000 }}>
+                <div 
+                  className="chat-drawer-sheet" 
+                  onClick={(e) => e.stopPropagation()} 
+                  style={{ height: 'auto', maxHeight: '85%', padding: '1.5rem', borderRadius: '30px 30px 0 0' }}
                 >
-                  <option value="expense">Expense</option>
-                  <option value="income">Income</option>
-                </select>
-                <select 
-                  className="select-input" 
-                  value={txnCategory} 
-                  onChange={(e) => setTxnCategory(e.target.value)} 
-                  style={{ flex: '1 1 110px' }}
-                >
-                  {txnType === 'income' ? (
-                    <>
-                      <option value="Salary">💵 Gaji & Bulanan</option>
-                      <option value="Freelance">💻 Freelance & Proyek</option>
-                      <option value="Investment">📈 Investasi</option>
-                      <option value="Gift">🎁 Hadiah & Hibah</option>
-                      <option value="Other">📦 Lainnya</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="Caffeine/Food">☕ Makanan & Kopi</option>
-                      <option value="Impulse/Lifestyle">🛍️ Belanja Impulsif</option>
-                      <option value="Travel">🚗 Transportasi</option>
-                      <option value="Other">📦 Lainnya</option>
-                    </>
-                  )}
-                </select>
-                {assets && assets.length > 0 && <select className="select-input" value={txnAssetId} onChange={(e) => setTxnAssetId(e.target.value)} style={{ flex: '1 1 110px' }}>{assets.map(a => <option key={a.id} value={a.id}>💳 {a.name}</option>)}</select>}
-                <button type="submit" className="primary-btn" style={{ flex: '1 1 60px' }}>Log</button>
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 800 }}>💵 Catat Transaksi</h3>
+                    <button className="circular-utility-btn" onClick={() => setShowTxnSheet(false)}>
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  <form 
+                    onSubmit={(e) => {
+                      handleAddTransaction(e);
+                      setShowTxnSheet(false);
+                    }} 
+                    style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+                  >
+                    
+                    {/* Amount Field: Large & Centered */}
+                    <div style={{ textAlign: 'center', margin: '0.5rem 0' }}>
+                      <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>NOMINAL TRANSAKSI (RP)</label>
+                      <input 
+                        type="number" 
+                        pattern="[0-9]*"
+                        inputMode="numeric"
+                        className="task-input" 
+                        placeholder="0" 
+                        value={txnAmount} 
+                        onChange={(e) => setTxnAmount(e.target.value)} 
+                        required 
+                        style={{ fontSize: '2rem', fontWeight: '900', textAlign: 'center', width: '100%', background: 'none', border: 'none', borderBottom: '2.5px solid var(--accent-volt)', borderRadius: 0, color: 'var(--text-primary)', outline: 'none', paddingBottom: '4px' }} 
+                      />
+                    </div>
+
+                    {/* Type Toggle: Pill Toggle Style */}
+                    <div style={{ display: 'flex', background: 'var(--bg-pill)', borderRadius: '12px', padding: '4px', width: '100%' }}>
+                      <button 
+                        type="button" 
+                        onClick={() => { setTxnType('expense'); setTxnCategory('Caffeine/Food'); }} 
+                        style={{ flex: 1, padding: '8px', fontSize: '0.78rem', border: 'none', borderRadius: '8px', background: txnType === 'expense' ? 'var(--card-bg-solid)' : 'transparent', color: txnType === 'expense' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }}
+                      >
+                        Pengeluaran
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => { setTxnType('income'); setTxnCategory('Salary'); }} 
+                        style={{ flex: 1, padding: '8px', fontSize: '0.78rem', border: 'none', borderRadius: '8px', background: txnType === 'income' ? 'var(--card-bg-solid)' : 'transparent', color: txnType === 'income' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }}
+                      >
+                        Pemasukan
+                      </button>
+                    </div>
+
+                    {/* Category Scroll Chips: Horizontal scroll */}
+                    <div>
+                      <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>PILIH KATEGORI</label>
+                      <div className="category-scroll-row" style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '4px 0', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+                        {(txnType === 'income' ? [
+                          { value: 'Salary', label: '💵 Gaji' },
+                          { value: 'Freelance', label: '💻 Proyek' },
+                          { value: 'Investment', label: '📈 Investasi' },
+                          { value: 'Gift', label: '🎁 Hadiah' },
+                          { value: 'Other', label: '📦 Lainnya' }
+                        ] : [
+                          { value: 'Caffeine/Food', label: '☕ Makan & Kopi' },
+                          { value: 'Impulse/Lifestyle', label: '🛍️ Belanja' },
+                          { value: 'Travel', label: '🚗 Transportasi' },
+                          { value: 'Other', label: '📦 Lainnya' }
+                        ]).map(cat => {
+                          const isActive = txnCategory === cat.value;
+                          return (
+                            <button
+                              type="button"
+                              key={cat.value}
+                              onClick={() => setTxnCategory(cat.value)}
+                              style={{
+                                flexShrink: 0,
+                                padding: '6px 14px',
+                                borderRadius: '20px',
+                                border: isActive ? '1.5px solid var(--accent-volt)' : '1px solid var(--card-border-inner)',
+                                background: isActive ? 'rgba(187, 238, 0, 0.12)' : 'var(--bg-pill)',
+                                color: isActive ? 'var(--accent-volt)' : 'var(--text-secondary)',
+                                fontSize: '0.72rem',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              {cat.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Asset / Source Selector */}
+                    {assets && assets.length > 0 && (
+                      <div>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>METODE PEMBAYARAN / SUMBER</label>
+                        <select 
+                          className="select-input" 
+                          value={txnAssetId} 
+                          onChange={(e) => setTxnAssetId(e.target.value)} 
+                          style={{ width: '100%', fontSize: '0.8rem' }}
+                        >
+                          {assets.map(a => <option key={a.id} value={a.id}>💳 {a.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Note Field (deskripsi) */}
+                    <div>
+                      <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>CATATAN / DESKRIPSI</label>
+                      <input 
+                        type="text" 
+                        className="task-input" 
+                        placeholder="Opsional (e.g. Beli Kopi Latte)" 
+                        value={txnDesc} 
+                        onChange={(e) => setTxnDesc(e.target.value)} 
+                        required 
+                        style={{ width: '100%', fontSize: '0.8rem' }}
+                      />
+                    </div>
+
+                    {/* Confirm Button */}
+                    <button 
+                      type="submit" 
+                      className="primary-btn" 
+                      style={{ padding: '12px', borderRadius: '12px', fontWeight: 'bold', background: 'var(--accent-volt)', color: '#000', marginTop: '0.5rem' }}
+                    >
+                      Catat Transaksi
+                    </button>
+                  </form>
+                </div>
               </div>
-            </form>
+            )}
 
             {/* List all transactions */}
             <div className="section-label-row" style={{ marginTop: '0.75rem', marginBottom: '0.25rem' }}>
