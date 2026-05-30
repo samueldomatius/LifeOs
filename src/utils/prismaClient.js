@@ -8,7 +8,7 @@ export async function checkPrismaReachable() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1200); // 1.2s timeout
     
-    const res = await fetch(`${API_URL}/health`, { 
+    const res = await fetch(`${API_URL}/api/health`, { 
       signal: controller.signal 
     });
     clearTimeout(timeoutId);
