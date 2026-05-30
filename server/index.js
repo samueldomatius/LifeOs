@@ -183,6 +183,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', framework: 'Prisma Client + Express' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Prisma backend listening on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Prisma backend listening on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
