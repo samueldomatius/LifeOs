@@ -1,0 +1,27 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model UserData {
+  id          String   @id
+  email       String?  @unique
+  password    String?
+  updatedAt   DateTime @updatedAt
+  tasks       Json     @default("[]")
+  finances    Json     @default("[]")
+  currentDay  Json     @default("{}")
+  assets      Json     @default("[]")
+  savings     Json     @default("[]")
+  debts       Json     @default("[]")
+  history     Json     @default("[]")
+  chatHistory Json     @default("[]")
+  userProfile Json     @default("{}")
+
+  @@map("lifeos_user_data")
+}

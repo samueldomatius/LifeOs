@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npx prisma generate --schema=server/prisma/schema.prisma && npx vite build",
+  "buildCommand": "npx prisma generate && npx vite build",
   "outputDirectory": "dist",
   "installCommand": "npm install --include=dev",
   "builds": [
@@ -25,5 +25,10 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "prisma/schema.prisma"
+    }
+  }
 }
