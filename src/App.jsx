@@ -478,6 +478,51 @@ export default function App() {
     bullets: ['Mengevaluasi agenda...']
   });
 
+  const [aiSummariesCache, setAiSummariesCache] = useState(() => {
+    try {
+      const saved = localStorage.getItem('lifeos_ai_summaries_cache');
+      return saved ? JSON.parse(saved) : {};
+    } catch(e) {
+      return {};
+    }
+  });
+
+  const [aiExplanationsCache, setAiExplanationsCache] = useState(() => {
+    try {
+      const saved = localStorage.getItem('lifeos_ai_explanations_cache');
+      return saved ? JSON.parse(saved) : {};
+    } catch(e) {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('lifeos_ai_summaries_cache', JSON.stringify(aiSummariesCache));
+    } catch(e) {}
+  }, [aiSummariesCache]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('lifeos_ai_explanations_cache', JSON.stringify(aiExplanationsCache));
+    } catch(e) {}
+  }, [aiExplanationsCache]);
+
+  const getDayFingerprint = (dateVal, dayState, taskList, financeList) => {
+    if (!dayState) return '';
+    const dayTasks = taskList.filter(t => t.dueDate === dateVal).map(t => `${t.id}-${t.status}`).sort().join(',');
+    const dayFinances = financeList.filter(f => f.date === dateVal).map(f => `${f.id}-${f.amount}-${f.type}`).sort().join(',');
+    const sliders = JSON.stringify({
+      sleepHours: dayState.sleepHours,
+      sleepQuality: dayState.sleepQuality,
+      steps: dayState.steps,
+      workoutMinutes: dayState.workoutMinutes,
+      waterIntake: dayState.waterIntake,
+      directMood: dayState.directMood
+    });
+    return `tasks:${dayTasks}|finances:${dayFinances}|sliders:${sliders}`;
+  };
+
   const [txnDesc, setTxnDesc] = useState('');
   const [txnAmount, setTxnAmount] = useState('');
   const [txnType, setTxnType] = useState('expense');
@@ -756,23 +801,49 @@ export default function App() {
     }
   }, [selectedDate]);
 
-  // Dynamic AI daily summary generator
+  // Dynamic AI daily summary generator with caching & debouncing
   useEffect(() => {
-    if (dbLoading) return;
+    if (dbLoading || !userId) return;
+
+    const currentFingerprint = getDayFingerprint(selectedDate, currentDay, tasks, finances);
+    
+    // Check if we have a valid summary in cache with matching fingerprint
+    const cachedEntry = aiSummariesCache[selectedDate];
+    if (cachedEntry && cachedEntry.fingerprint === currentFingerprint) {
+      setDailySummary(cachedEntry.summary);
+      return;
+    }
+
     let active = true;
     const fetchSummary = async () => {
       try {
         const result = await getAIDailySummary(currentDay, filteredTasks, filteredFinances);
         if (active) {
           setDailySummary(result);
+          // Save to cache
+          setAiSummariesCache(prev => ({
+            ...prev,
+            [selectedDate]: {
+              fingerprint: currentFingerprint,
+              summary: result
+            }
+          }));
         }
       } catch (e) {
-        console.error(e);
+        console.error("AI daily summary request failed:", e);
       }
     };
-    fetchSummary();
-    return () => { active = false; };
-  }, [selectedDate, dbLoading]);
+
+    // Debounce the API call so rapid slider changes or navigating doesn't spam
+    const delayDebounce = setTimeout(() => {
+      fetchSummary();
+    }, 1500);
+
+    return () => {
+      active = false;
+      clearTimeout(delayDebounce);
+    };
+  }, [selectedDate, dbLoading, tasks, finances, currentDay, userId]);
 
   useEffect(() => {
     if (selectedDayIndex !== null && selectedDayIndex >= 0 && selectedDayIndex < history.length) {
@@ -848,25 +919,52 @@ export default function App() {
     };
   }, [timerRunning]);
 
+  // Dynamic LQS AI Explanation generator with caching & debouncing
   useEffect(() => {
-    if (dbLoading) return;
+    if (dbLoading || !userId) return;
+
+    const currentFingerprint = getDayFingerprint(selectedDate, currentDay, tasks, finances);
+    
+    // Check if we have a valid explanation in cache with matching fingerprint
+    const cachedEntry = aiExplanationsCache[selectedDate];
+    if (cachedEntry && cachedEntry.fingerprint === currentFingerprint) {
+      setAiExplanation(cachedEntry.explanation);
+      return;
+    }
+
     let active = true;
     const fetchExplanation = async () => {
       try {
         const result = await getAIExplanation(finalScore, breakdown, currentDay, filteredTasks, filteredFinances);
         if (active) {
           setAiExplanation(result);
+          // Save to cache
+          setAiExplanationsCache(prev => ({
+            ...prev,
+            [selectedDate]: {
+              fingerprint: currentFingerprint,
+              explanation: result
+            }
+          }));
         }
       } catch (e) {
-        console.error(e);
+        console.error("AI explanation request failed:", e);
         if (e.toString().includes('429') || e.toString().includes('Quota') || e.toString().includes('RESOURCE_EXHAUSTED')) {
           setIsQuotaExceeded(true);
         }
       }
     };
-    fetchExplanation();
-    return () => { active = false; };
-  }, [selectedDate, dbLoading]);
+
+    // Debounce the API call so rapid slider changes or navigating doesn't spam
+    const delayDebounce = setTimeout(() => {
+      fetchExplanation();
+    }, 1500);
+
+    return () => {
+      active = false;
+      clearTimeout(delayDebounce);
+    };
+  }, [selectedDate, dbLoading, tasks, finances, currentDay, userId, finalScore, breakdown]);
   
   const insightsList = generatePatternInsights(history);
 
