@@ -1501,16 +1501,17 @@ export default function App() {
             }));
           }
         } else if (actionTriggered.type === 'ADD_TASK') {
-          const { text, priority, tag, date } = actionTriggered.payload;
+          const { text, priority, tag, date, time, endTime } = actionTriggered.payload;
           const newTask = {
             id: `task_${Date.now()}`,
             text: text || 'Tugas Baru (Rekomendasi AI) 📝',
             priority: priority || 'medium',
             tag: tag || 'Productivity',
             status: 'pending',
-            date: date || selectedDate,
-            time: '09:00',
-            endTime: '10:00'
+            dueDate: date || selectedDate,
+            time: time || '',
+            endTime: endTime || '',
+            snoozeCount: 0
           };
           setTasks(prev => [...prev, newTask]);
         } else if (actionTriggered.type === 'RESCHEDULE_TASKS') {
@@ -1518,7 +1519,7 @@ export default function App() {
           if (taskIds && nextDate) {
             setTasks(prev => prev.map(t => {
               if (taskIds.includes(t.id)) {
-                return { ...t, date: nextDate };
+                return { ...t, dueDate: nextDate };
               }
               return t;
             }));

@@ -404,15 +404,17 @@ Jika pengguna meminta Anda melakukan tindakan tertentu seperti mencatat pengelua
 }
 \`\`\`
 
-2. Menambah Tugas Baru:
+2. Menambah Tugas Baru (Bisa menyertakan jam mulai & selesai jika disebutkan):
 \`\`\`action_trigger
 {
   "type": "ADD_TASK",
   "payload": {
     "text": "Belajar Pemrograman React",
     "priority": "high",  // "high", "medium", "low"
-    "tag": "Productivity",  // "Productivity", "Health", "Finance", "Lifestyle", "Other"
-    "date": "2026-05-29"   // tanggal target YYYY-MM-DD
+    "tag": "Productivity",  // "Productivity", "Health", "Finance", "Social", "Growth", "Other"
+    "date": "2026-05-29",   // tanggal target YYYY-MM-DD
+    "time": "19:00",        // format 24 jam HH:MM (opsional jika disebutkan)
+    "endTime": "20:00"     // format 24 jam HH:MM (opsional jika disebutkan)
   }
 }
 \`\`\`
