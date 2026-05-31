@@ -28,10 +28,42 @@ export default function FinanceManager({
   debts,
   setDebts,
   onUpdateSpendCap,
-  finances
+  finances,
+  onAddAsset,
+  onUpdateAssetBalance,
+  onDeleteAsset
 }) {
-  const [activeTab, setActiveTab] = useState('summary'); // 'summary', 'savings_debts', 'monthly_cal', 'ai_advice'
+  const [activeTab, setActiveTab] = useState('summary'); // 'summary', 'wallets', 'savings_debts', 'monthly_cal', 'ai_advice'
   const [showTxnSheet, setShowTxnSheet] = useState(false);
+
+  // Asset Form States
+  const [showAddAssetForm, setShowAddAssetForm] = useState(false);
+  const [newAssetName, setNewAssetName] = useState('');
+  const [newAssetBalance, setNewAssetBalance] = useState('');
+  
+  const [editingAssetId, setEditingAssetId] = useState(null);
+  const [editAssetBalance, setEditAssetBalance] = useState('');
+
+  const handleAddAssetSubmit = (e) => {
+    e.preventDefault();
+    if (!newAssetName.trim() || !newAssetBalance) return;
+    const balanceNum = parseFloat(newAssetBalance);
+    if (isNaN(balanceNum)) return;
+
+    onAddAsset(newAssetName.trim(), balanceNum);
+    setNewAssetName('');
+    setNewAssetBalance('');
+    setShowAddAssetForm(false);
+  };
+
+  const handleEditAssetSubmit = (e, id) => {
+    e.preventDefault();
+    const balanceNum = parseFloat(editAssetBalance);
+    if (isNaN(balanceNum)) return;
+    onUpdateAssetBalance(id, balanceNum);
+    setEditingAssetId(null);
+    setEditAssetBalance('');
+  };
   
   // Spend cap states
   const spendCapGoal = goals ? goals.find(g => g.type === 'spend_cap') : null;
@@ -311,11 +343,12 @@ export default function FinanceManager({
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '0.35rem', background: 'var(--bg-pill)', padding: '4px', borderRadius: '14px', marginBottom: '0.75rem' }}>
-        <button onClick={() => setActiveTab('summary')} style={{ flex: 1, padding: '8px 4px', fontSize: '0.68rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'summary' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'summary' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Log & Tren</button>
-        <button onClick={() => setActiveTab('savings_debts')} style={{ flex: 1, padding: '8px 4px', fontSize: '0.68rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'savings_debts' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'savings_debts' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Tabungan/Hutang</button>
-        <button onClick={() => setActiveTab('monthly_cal')} style={{ flex: 1, padding: '8px 4px', fontSize: '0.68rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'monthly_cal' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'monthly_cal' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Kalender Bulat</button>
-        <button onClick={() => setActiveTab('ai_advice')} style={{ flex: 1, padding: '8px 4px', fontSize: '0.68rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'ai_advice' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'ai_advice' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}><Sparkles size={10} color="var(--accent-purple)" /> AI Advisor</button>
+      <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--bg-pill)', padding: '4px', borderRadius: '14px', marginBottom: '0.75rem' }}>
+        <button onClick={() => setActiveTab('summary')} style={{ flex: 1, padding: '8px 2px', fontSize: '0.63rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'summary' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'summary' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Log & Tren</button>
+        <button onClick={() => setActiveTab('wallets')} style={{ flex: 1, padding: '8px 2px', fontSize: '0.63rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'wallets' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'wallets' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Dompet Saya</button>
+        <button onClick={() => setActiveTab('savings_debts')} style={{ flex: 1, padding: '8px 2px', fontSize: '0.63rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'savings_debts' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'savings_debts' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Tabungan/Hutang</button>
+        <button onClick={() => setActiveTab('monthly_cal')} style={{ flex: 1, padding: '8px 2px', fontSize: '0.63rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'monthly_cal' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'monthly_cal' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Kalender</button>
+        <button onClick={() => setActiveTab('ai_advice')} style={{ flex: 1, padding: '8px 2px', fontSize: '0.63rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'ai_advice' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'ai_advice' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}><Sparkles size={10} color="var(--accent-purple)" /> AI Advisor</button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', flex: 1, paddingBottom: '20px' }}>
@@ -323,11 +356,32 @@ export default function FinanceManager({
         {activeTab === 'summary' && (
           <>
             {/* Total Saldo Card */}
-            <div className="glass-panel volt-card" style={{ background: 'linear-gradient(135deg, rgba(34, 211, 238, 0.06), rgba(0, 0, 0, 0.3))', border: '1px solid rgba(34, 211, 238, 0.15)', color: '#fff', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div className="glass-panel volt-card" style={{ background: 'linear-gradient(135deg, rgba(34, 211, 238, 0.06), rgba(0, 0, 0, 0.3))', border: '1px solid rgba(34, 211, 238, 0.15)', color: '#fff', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
               <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.6)', fontWeight: 'bold', textTransform: 'uppercase' }}>Total Saldo Akun (Dompet)</span>
               <h2 style={{ color: (assets || []).reduce((sum, a) => sum + (a.balance || 0), 0) >= 0 ? 'var(--accent-volt)' : 'var(--accent-coral)', fontSize: '1.45rem', margin: '4px 0 0 0', fontWeight: '800' }}>
                 Rp {(assets || []).reduce((sum, a) => sum + (a.balance || 0), 0).toLocaleString('id-ID')}
               </h2>
+              <button 
+                type="button"
+                onClick={() => setActiveTab('wallets')}
+                style={{
+                  position: 'absolute',
+                  right: '1.25rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '10px',
+                  padding: '4px 8px',
+                  fontSize: '0.65rem',
+                  color: '#fff',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                ⚙️ Kelola Dompet
+              </button>
             </div>
 
             {/* Allowance & Edit Limit section */}
@@ -717,6 +771,143 @@ export default function FinanceManager({
               </div>
             </div>
           </>
+        )}
+
+        {activeTab === 'wallets' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Total Kekayaan Card */}
+            <div className="glass-panel volt-card" style={{ background: '#120e24', border: '1px solid rgba(255, 255, 255, 0.08)', color: '#fff', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.6)', fontWeight: 'bold', textTransform: 'uppercase' }}>Total Saldo Dompet</span>
+              <h2 style={{ color: '#fff', fontSize: '1.6rem', margin: '4px 0 0 0', fontWeight: '800' }}>Rp {assets.reduce((sum, a) => sum + (a.balance || 0), 0).toLocaleString('id-ID')}</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'rgba(255,255,255,0.6)', marginTop: '4px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '4px' }}>
+                <span>Jumlah Akun: {assets.length}</span>
+                <span>Tabungan Impian: Rp {savings.reduce((sum, s) => sum + (s.currentAmount || 0), 0).toLocaleString('id-ID')}</span>
+              </div>
+            </div>
+
+            {/* Add Asset Form trigger */}
+            {!showAddAssetForm && (
+              <button 
+                onClick={() => setShowAddAssetForm(true)} 
+                className="primary-btn"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'var(--bg-pill)', color: 'var(--text-primary)', border: '1px solid var(--card-border-inner)', borderRadius: '14px', padding: '0.65rem', fontWeight: 'bold' }}
+              >
+                <Plus size={16} /> Tambah Akun / Dompet Baru
+              </button>
+            )}
+
+            {/* Add Asset Form */}
+            {showAddAssetForm && (
+              <form onSubmit={handleAddAssetSubmit} className="glass-panel volt-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Tambah Akun Baru</span>
+                  <button type="button" onClick={() => setShowAddAssetForm(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={14} /></button>
+                </div>
+                <input 
+                  type="text" 
+                  placeholder="Nama Akun (e.g. GoPay, Bank Mandiri)" 
+                  className="task-input" 
+                  value={newAssetName} 
+                  onChange={(e) => setNewAssetName(e.target.value)}
+                  required
+                />
+                <input 
+                  type="number" 
+                  placeholder="Saldo Awal (Rp)" 
+                  className="task-input" 
+                  value={newAssetBalance} 
+                  onChange={(e) => setNewAssetBalance(e.target.value)}
+                  required
+                />
+                <button type="submit" className="primary-btn" style={{ background: 'var(--accent-volt)', color: '#000', fontWeight: 'bold' }}>Simpan Dompet</button>
+              </form>
+            )}
+
+            {/* Assets List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {assets.map(a => {
+                const isEditing = editingAssetId === a.id;
+                
+                // Filter latest 3 transactions for this asset
+                const assetTxns = finances.filter(f => f.assetId === a.id).slice(0, 3);
+
+                return (
+                  <div key={a.id} className="glass-panel volt-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ background: 'var(--bg-pill)', width: '32px', height: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <CreditCard size={14} color="var(--accent-purple)" />
+                        </div>
+                        <span style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>{a.name}</span>
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button 
+                          onClick={() => {
+                            setEditingAssetId(a.id);
+                            setEditAssetBalance(a.balance.toString());
+                          }} 
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}
+                          title="Edit Saldo"
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                        {assets.length > 1 && (
+                          <button 
+                            onClick={() => {
+                              if (confirm(`Apakah Anda yakin ingin menghapus akun "${a.name}"?`)) {
+                                onDeleteAsset(a.id);
+                              }
+                            }} 
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-coral)', padding: '4px' }}
+                            title="Hapus"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {isEditing ? (
+                      <form onSubmit={(e) => handleEditAssetSubmit(e, a.id)} style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                        <input 
+                          type="number" 
+                          className="task-input" 
+                          value={editAssetBalance} 
+                          onChange={(e) => setEditAssetBalance(e.target.value)} 
+                          style={{ flex: 1, padding: '4px 8px', height: '32px' }}
+                          autoFocus
+                        />
+                        <button type="submit" className="primary-btn" style={{ padding: '4px 10px', borderRadius: '8px', fontSize: '0.7rem' }}>Simpan</button>
+                        <button type="button" onClick={() => setEditingAssetId(null)} className="primary-btn" style={{ padding: '4px 10px', borderRadius: '8px', fontSize: '0.7rem', background: 'var(--bg-pill)', color: 'var(--text-primary)' }}>Batal</button>
+                      </form>
+                    ) : (
+                      <h3 style={{ fontSize: '1.25rem', fontFamily: 'Outfit', fontWeight: '800', margin: 0 }}>
+                        Rp {a.balance.toLocaleString('id-ID')}
+                      </h3>
+                    )}
+
+                    {/* Subledger: recent transactions for this wallet */}
+                    {assetTxns.length > 0 && (
+                      <div style={{ borderTop: '1px solid var(--card-border-inner)', paddingTop: '6px', marginTop: '2px' }}>
+                        <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>TRANSAKSI TERAKHIR DOMPET</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {assetTxns.map(t => (
+                            <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>{t.description}</span>
+                              <span style={{ fontWeight: 'bold', color: t.type === 'income' ? 'var(--accent-volt-dark)' : 'var(--accent-coral)' }}>
+                                {t.type === 'income' ? '+' : '-'}Rp {t.amount.toLocaleString('id-ID')}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {activeTab === 'savings_debts' && (

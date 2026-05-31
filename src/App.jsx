@@ -163,7 +163,11 @@ export default function App() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch(e) {}
-    return [];
+    return [
+      { id: 'cash', name: 'Tunai / Cash', balance: 500000 },
+      { id: 'gopay', name: 'GoPay', balance: 250000 },
+      { id: 'bank', name: 'Rekening Bank', balance: 2000000 }
+    ];
   });
 
   const [goals, setGoals] = useState(() => {
@@ -1264,6 +1268,10 @@ export default function App() {
     const amountNum = parseFloat(txnAmount);
     if (isNaN(amountNum) || amountNum <= 0) return;
 
+    const targetAssetId = assets.some(a => a.id === txnAssetId) 
+      ? txnAssetId 
+      : (assets.length > 0 ? assets[0].id : 'cash');
+
     const newTxn = {
       id: `txn_${Date.now()}`,
       type: txnType,
@@ -1272,14 +1280,14 @@ export default function App() {
       description: txnDesc,
       timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
       date: selectedDate,
-      assetId: txnAssetId
+      assetId: targetAssetId
     };
 
     setFinances([newTxn, ...finances]);
 
     // Update asset balance
     setAssets(prev => prev.map(a => {
-      if (a.id === txnAssetId) {
+      if (a.id === targetAssetId) {
         return {
           ...a,
           balance: txnType === 'income' ? a.balance + amountNum : a.balance - amountNum
@@ -1325,10 +1333,11 @@ export default function App() {
       
       // Apply new impact if matching new assetId
       const newAssetId = updatedFields.assetId !== undefined ? updatedFields.assetId : originalTxn.assetId;
+      const targetNewAssetId = assets.some(x => x.id === newAssetId) ? newAssetId : (assets.length > 0 ? assets[0].id : 'cash');
       const newType = updatedFields.type !== undefined ? updatedFields.type : originalTxn.type;
       const newAmount = updatedFields.amount !== undefined ? parseFloat(updatedFields.amount) : originalTxn.amount;
       
-      if (a.id === newAssetId) {
+      if (a.id === targetNewAssetId) {
         balance = newType === 'income' ? balance + newAmount : balance - newAmount;
       }
       
@@ -1339,7 +1348,9 @@ export default function App() {
   };
 
   const handleAddDirectTransaction = (desc, amount, type, category, assetId) => {
-    const targetAssetId = assetId || (assets && assets.length > 0 ? assets[0].id : 'cash');
+    const targetAssetId = assets.some(a => a.id === assetId) 
+      ? assetId 
+      : (assets.length > 0 ? assets[0].id : 'cash');
     const newTxn = {
       id: `txn_${Date.now()}`,
       type,
@@ -1435,7 +1446,8 @@ export default function App() {
     const currentAppState = { tasks, currentDay, finances, assets, goals, history };
 
     try {
-      const response = await processUserChat(inputMsg, currentAppState);
+      const localTimeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      const response = await processUserChat(inputMsg, currentAppState, localTimeStr);
       const { aiText, stateUpdates, actionTriggered } = response;
 
       if (stateUpdates && stateUpdates.habits) {
@@ -1455,8 +1467,14 @@ export default function App() {
 
       if (actionTriggered) {
         if (actionTriggered.type === 'ADD_EXPENSE') {
-          const { amount, category, description } = actionTriggered.payload;
-          const targetAssetId = assets && assets.length > 0 ? assets[0].id : 'cash';
+          const { amount, category, description, walletName } = actionTriggered.payload;
+          let targetAssetId = assets && assets.length > 0 ? assets[0].id : 'cash';
+          if (walletName) {
+            const matchedAsset = assets.find(a => a.name.toLowerCase().includes(walletName.toLowerCase()));
+            if (matchedAsset) {
+              targetAssetId = matchedAsset.id;
+            }
+          }
           const newTxn = {
             id: `txn_${Date.now()}`,
             type: 'expense',
@@ -1475,8 +1493,14 @@ export default function App() {
             return a;
           }));
         } else if (actionTriggered.type === 'ADD_TRANSACTION') {
-          const { type, amount, category, description } = actionTriggered.payload;
-          const targetAssetId = assets && assets.length > 0 ? assets[0].id : 'cash';
+          const { type, amount, category, description, walletName } = actionTriggered.payload;
+          let targetAssetId = assets && assets.length > 0 ? assets[0].id : 'cash';
+          if (walletName) {
+            const matchedAsset = assets.find(a => a.name.toLowerCase().includes(walletName.toLowerCase()));
+            if (matchedAsset) {
+              targetAssetId = matchedAsset.id;
+            }
+          }
           const amountNum = parseFloat(amount);
           if (!isNaN(amountNum) && amountNum > 0) {
             const newTxn = {
@@ -2349,6 +2373,9 @@ export default function App() {
           setSavings={setSavings}
           debts={debts}
           setDebts={setDebts}
+          onAddAsset={handleAddAsset}
+          onUpdateAssetBalance={handleUpdateAssetBalance}
+          onDeleteAsset={handleDeleteAsset}
           onUpdateSpendCap={handleUpdateSpendCap}
           finances={finances}
         />

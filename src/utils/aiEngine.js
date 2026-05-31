@@ -382,7 +382,7 @@ Tasks Completed: ${completedCount} completed, ${snoozedCount} snoozed.
 };
 
 // Conversational AI secretary processor powered by real Google Gemini API
-export const processUserChat = async (userMessage, appState) => {
+export const processUserChat = async (userMessage, appState, localTimeStr = '') => {
   const systemPrompt = `
 You are LifeOS AI Core, a proactive, witty, and supportive Gen Z AI Personal Secretary. 
 Communicate in a mix of Indonesian and Gen Z slang (bestie, gaes, dll.) with a supportive, witty tone. 
@@ -399,7 +399,8 @@ Jika pengguna meminta Anda melakukan tindakan tertentu seperti mencatat pengelua
     "type": "income",  // atau "expense"
     "amount": 50000,
     "category": "Salary",  // Kategori: "Salary", "Freelance", "Investment", "Gift", "Caffeine/Food", "Impulse/Lifestyle", "Travel", "Other"
-    "description": "Gaji Proyek Freelance"
+    "description": "Gaji Proyek Freelance",
+    "walletName": "GoPay" // nama dompet digital yang disebutkan pengguna seperti "gopay", "bank", "cash", dll. (opsional)
   }
 }
 \`\`\`
@@ -413,7 +414,7 @@ Jika pengguna meminta Anda melakukan tindakan tertentu seperti mencatat pengelua
     "priority": "high",  // "high", "medium", "low"
     "tag": "Productivity",  // "Productivity", "Health", "Finance", "Social", "Growth", "Other"
     "date": "2026-05-29",   // tanggal target YYYY-MM-DD
-    "time": "19:00",        // format 24 jam HH:MM (opsional jika disebutkan)
+    "time": "19:00",        // format 24 jam HH:MM secara AKURAT. Contoh: "jam 7 malam" -> "19:00", "jam 7 pagi" -> "07:00", "jam 1 siang" -> "13:00", "jam 5 sore" -> "17:00". Jangan pernah asal menebak jam 9 pagi jika disebut malam!
     "endTime": "20:00"     // format 24 jam HH:MM (opsional jika disebutkan)
   }
 }
@@ -452,6 +453,7 @@ Usahakan respon tetap singkat, ramah, dan sangat Gen Z! Gunakan format markdown 
   const userPrompt = `
 User Message: "${userMessage}"
 Current Date: ${appState.currentDay?.date || "today"}
+Current Local Time: ${localTimeStr || "not specified"}
 Current Habits: ${JSON.stringify(appState.currentDay)}
 Today's Pending Tasks: ${JSON.stringify(pendingTasks)}
 Today's Transactions: ${JSON.stringify(appState.finances.filter(f => f.date === appState.currentDay?.date))}
