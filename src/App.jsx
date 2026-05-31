@@ -620,9 +620,19 @@ export default function App() {
     alert(`Lari selesai! Anda berhasil menempuh ${gpsDistance.toFixed(2)} km, setara dengan ~${calculatedSteps} langkah, dalam ${workoutMin} menit.`);
   };
 
-  // --- Calculations derived from selections ---
   const filteredTasks = tasks.filter(t => t.dueDate === selectedDate);
   const filteredFinances = finances.filter(f => f.date === selectedDate);
+
+  // Dynamic reconciled assets factoring all incomes and expenses
+  const resolvedAssets = assets.map(a => {
+    const assetTxns = finances.filter(f => f.assetId === a.id);
+    const incomes = assetTxns.filter(f => f.type === 'income').reduce((sum, f) => sum + parseFloat(f.amount || 0), 0);
+    const expenses = assetTxns.filter(f => f.type === 'expense').reduce((sum, f) => sum + parseFloat(f.amount || 0), 0);
+    return {
+      ...a,
+      balance: parseFloat(a.balance || 0) + incomes - expenses
+    };
+  });
 
   const lifeScoreObj = calculateLifeScore(currentDay, filteredTasks, filteredFinances);
   const { finalScore, breakdown } = lifeScoreObj;
@@ -1201,8 +1211,19 @@ export default function App() {
     setAssets([...assets, newAsset]);
   };
 
-  const handleUpdateAssetBalance = (id, balance) => {
-    setAssets(prev => prev.map(a => a.id === id ? { ...a, balance } : a));
+  const handleUpdateAssetBalance = (id, newBalance) => {
+    setAssets(prev => prev.map(a => {
+      if (a.id === id) {
+        const assetTxns = finances.filter(f => f.assetId === id);
+        const incomes = assetTxns.filter(f => f.type === 'income').reduce((sum, f) => sum + parseFloat(f.amount || 0), 0);
+        const expenses = assetTxns.filter(f => f.type === 'expense').reduce((sum, f) => sum + parseFloat(f.amount || 0), 0);
+        return {
+          ...a,
+          balance: parseFloat(newBalance) - incomes + expenses
+        };
+      }
+      return a;
+    }));
   };
 
   const handleDeleteAsset = (id) => {
@@ -2367,7 +2388,7 @@ export default function App() {
           onUpdateTransaction={handleUpdateTransaction}
           history={history}
           formatDateHeader={formatDateHeader}
-          assets={assets}
+          assets={resolvedAssets}
           goals={goals}
           savings={savings}
           setSavings={setSavings}
@@ -2383,7 +2404,7 @@ export default function App() {
 
       {activeScreen === 'assets' && (
         <AssetsManager 
-          assets={assets}
+          assets={resolvedAssets}
           onAddAsset={handleAddAsset}
           onUpdateAssetBalance={handleUpdateAssetBalance}
           onDeleteAsset={handleDeleteAsset}
@@ -2400,7 +2421,7 @@ export default function App() {
           currentDay={currentDay}
           filteredTasks={filteredTasks}
           filteredFinances={filteredFinances}
-          assets={assets}
+          assets={resolvedAssets}
         />
       )}
 
