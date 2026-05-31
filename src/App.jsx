@@ -1290,7 +1290,7 @@ export default function App() {
       if (a.id === targetAssetId) {
         return {
           ...a,
-          balance: txnType === 'income' ? a.balance + amountNum : a.balance - amountNum
+          balance: txnType === 'income' ? parseFloat(a.balance || 0) + amountNum : parseFloat(a.balance || 0) - amountNum
         };
       }
       return a;
@@ -1309,7 +1309,7 @@ export default function App() {
       if (a.id === txn.assetId) {
         return {
           ...a,
-          balance: txn.type === 'income' ? a.balance - txn.amount : a.balance + txn.amount
+          balance: txn.type === 'income' ? parseFloat(a.balance || 0) - txn.amount : parseFloat(a.balance || 0) + txn.amount
         };
       }
       return a;
@@ -1324,7 +1324,7 @@ export default function App() {
     
     // Let's revert original asset balance impact, then apply new balance impact
     setAssets(prev => prev.map(a => {
-      let balance = a.balance;
+      let balance = parseFloat(a.balance || 0);
       
       // Revert old impact if matching assetId
       if (a.id === originalTxn.assetId) {
@@ -1368,7 +1368,7 @@ export default function App() {
       if (a.id === targetAssetId) {
         return {
           ...a,
-          balance: type === 'income' ? a.balance + amount : a.balance - amount
+          balance: type === 'income' ? parseFloat(a.balance || 0) + amount : parseFloat(a.balance || 0) - amount
         };
       }
       return a;
@@ -1488,7 +1488,7 @@ export default function App() {
           setFinances(prev => [newTxn, ...prev]);
           setAssets(prev => prev.map(a => {
             if (a.id === targetAssetId) {
-              return { ...a, balance: a.balance - amount };
+              return { ...a, balance: parseFloat(a.balance || 0) - amount };
             }
             return a;
           }));
@@ -1518,7 +1518,7 @@ export default function App() {
               if (a.id === targetAssetId) {
                 return {
                   ...a,
-                  balance: type === 'income' ? a.balance + amountNum : a.balance - amountNum
+                  balance: type === 'income' ? parseFloat(a.balance || 0) + amountNum : parseFloat(a.balance || 0) - amountNum
                 };
               }
               return a;
