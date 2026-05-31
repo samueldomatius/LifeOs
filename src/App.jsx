@@ -312,6 +312,26 @@ export default function App() {
     ];
   });
 
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const saved = localStorage.getItem('lifeos_notifications');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [activeToast, setActiveToast] = useState(null);
+
+  useEffect(() => {
+    if (activeToast) {
+      const timer = setTimeout(() => {
+        setActiveToast(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeToast]);
+
   // --- UI Screen View Controller ---
   const [activeScreen, setActiveScreen] = useState('dashboard');
   const [aiChatOpen, setAiChatOpen] = useState(false);
@@ -408,8 +428,6 @@ export default function App() {
 
   useEffect(() => {
     const checkReminders = () => {
-      if (!('Notification' in window) || Notification.permission !== 'granted') return;
-      
       const now = new Date();
       const currentHrs = now.getHours().toString().padStart(2, '0');
       const currentMins = now.getMinutes().toString().padStart(2, '0');
@@ -422,17 +440,79 @@ export default function App() {
       const systemTodayStr = `${systemYear}-${systemMonth}-${systemDay}`;
 
       tasks.forEach(t => {
-        if (t.status === 'pending' && t.dueDate === systemTodayStr && t.taskTime === currentTimeStr) {
-          if (!notifiedTasksRef.current.has(t.id)) {
-            notifiedTasksRef.current.add(t.id);
-            try {
-              new Notification("⏰ Pengingat Tugas LifeOS", {
-                body: `Saatnya mengerjakan: "${t.text}" (Jadwal: ${t.taskTime})`,
-                tag: t.id,
-                requireInteraction: true
+        if (t.status === 'pending' && t.dueDate === systemTodayStr && t.time) {
+          const [taskHr, taskMin] = t.time.split(':').map(Number);
+          const taskTimeToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), taskHr, taskMin, 0);
+          const diffMs = taskTimeToday - now;
+          const diffMins = Math.round(diffMs / 60000); // Minutes until task
+
+          // 1. H-5 Minutes reminder
+          if (diffMins === 5) {
+            const notifKey = `h5_${t.id}`;
+            if (!notifiedTasksRef.current.has(notifKey)) {
+              notifiedTasksRef.current.add(notifKey);
+
+              const newNotif = {
+                id: `notif_h5_${Date.now()}_${t.id}`,
+                title: "⏰ Tugas Mendatang (H-5 Menit)",
+                body: `Tugas "${t.text}" akan dimulai dalam 5 menit (Jadwal: ${t.time})`,
+                timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+                read: false
+              };
+
+              setNotifications(prev => [newNotif, ...prev]);
+              setActiveToast({
+                id: Date.now(),
+                title: newNotif.title,
+                body: newNotif.body
               });
-            } catch (e) {
-              console.error("Failed to trigger browser notification:", e);
+
+              try {
+                if ('Notification' in window && Notification.permission === 'granted') {
+                  new Notification("⏰ Pengingat Tugas LifeOS (H-5)", {
+                    body: `Tugas "${t.text}" mulai dalam 5 menit!`,
+                    tag: t.id,
+                    requireInteraction: true
+                  });
+                }
+              } catch (e) {
+                console.error("Failed browser notification:", e);
+              }
+            }
+          }
+
+          // 2. Exact start time reminder (H-0)
+          if (t.time === currentTimeStr) {
+            const notifKey = `now_${t.id}`;
+            if (!notifiedTasksRef.current.has(notifKey)) {
+              notifiedTasksRef.current.add(notifKey);
+
+              const newNotif = {
+                id: `notif_now_${Date.now()}_${t.id}`,
+                title: "🚨 Waktu Tugas Mulai!",
+                body: `Saatnya mengerjakan: "${t.text}" (Jadwal: ${t.time})`,
+                timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+                read: false
+              };
+
+              setNotifications(prev => [newNotif, ...prev]);
+              setActiveToast({
+                id: Date.now(),
+                title: newNotif.title,
+                body: newNotif.body
+              });
+
+              try {
+                if ('Notification' in window && Notification.permission === 'granted') {
+                  new Notification("⏰ Pengingat Tugas LifeOS", {
+                    body: `Saatnya mengerjakan: "${t.text}" (Jadwal: ${t.time})`,
+                    tag: t.id,
+                    requireInteraction: true
+                  });
+                }
+              } catch (e) {
+                console.error("Failed browser notification:", e);
+              }
             }
           }
         }
@@ -818,6 +898,12 @@ export default function App() {
       localStorage.setItem('lifeos_assets', JSON.stringify(assets));
     } catch(e){}
   }, [assets]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('lifeos_notifications', JSON.stringify(notifications));
+    } catch(e){}
+  }, [notifications]);
 
   useEffect(() => {
     try {
@@ -1678,6 +1764,11 @@ export default function App() {
     window.location.hash = '';
   };
 
+  const handleOpenNotifications = () => {
+    setShowNotificationModal(true);
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
   const toggleTimer = () => setTimerRunning(!timerRunning);
   const resetTimer = () => {
     setTimerRunning(false);
@@ -1703,11 +1794,12 @@ export default function App() {
           theme={theme}
           toggleTheme={toggleTheme}
           onOpenDiagnosis={() => setShowAiDiagnosisModal(true)}
-          onOpenNotifications={() => setShowNotificationModal(true)}
+          onOpenNotifications={handleOpenNotifications}
           streakCount={streakCount}
           isStreakActive={isStreakActive}
           userProfile={userProfile}
           onOpenProfile={() => { setActiveScreen('profile'); setAiChatOpen(false); }}
+          hasUnreadNotifications={notifications.some(n => !n.read)}
         />
 
         {/* Friendly greeting */}
@@ -2487,9 +2579,45 @@ export default function App() {
         <div className="subpanel-overlay">
           <div className="subpanel-header">
             <span className="subpanel-title">🔔 Smart Notifications</span>
-            <button className="circular-utility-btn" onClick={() => setShowNotificationModal(false)}><X size={16} /></button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {notifications.length > 0 && (
+                <button 
+                  onClick={() => setNotifications([])} 
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--accent-coral)',
+                    fontSize: '0.7rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Clear All
+                </button>
+              )}
+              <button className="circular-utility-btn" onClick={() => setShowNotificationModal(false)}><X size={16} /></button>
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
+            
+            {/* Dynamic task reminders */}
+            {notifications.map(n => (
+              <div key={n.id} className="recent-row-item" style={{ borderLeft: '4px solid var(--accent-purple)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                <div className="row-item-text-stack" style={{ flex: 1 }}>
+                  <span style={{ fontWeight: 'bold', fontSize: '0.8rem', color: 'var(--accent-purple)' }}>{n.title}</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-primary)', marginTop: '2px' }}>{n.body}</span>
+                  <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '2px' }}>{n.timestamp}</span>
+                </div>
+              </div>
+            ))}
+
+            {notifications.length === 0 && (
+              <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.72rem', margin: '12px 0', fontStyle: 'italic' }}>
+                Tidak ada notifikasi tugas baru.
+              </p>
+            )}
+
+            {/* Static structural alerts */}
             {filteredTasks.filter(t => t.status === 'snoozed').length >= 3 && (
               <div className="recent-row-item" style={{ borderLeft: '4px solid var(--accent-coral)' }}>
                 <div className="row-item-text-stack">
@@ -2513,6 +2641,63 @@ export default function App() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Floating Dynamic Toast Notification Pop-up */}
+      {activeToast && (
+        <div 
+          className="glass-panel volt-card theme-transition" 
+          style={{
+            position: 'absolute',
+            top: '24px',
+            left: '16px',
+            right: '16px',
+            zIndex: 9999,
+            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.95), rgba(24, 24, 37, 0.98))',
+            border: '1.5px solid rgba(139, 92, 246, 0.45)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.5), 0 0 20px rgba(139, 92, 246, 0.25)',
+            borderRadius: '20px',
+            padding: '0.9rem 1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            animation: 'slideDownFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+          }}
+        >
+          <div style={{
+            background: 'rgba(255,255,255,0.15)',
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--accent-volt)',
+            flexShrink: 0
+          }}>
+            <Bell size={16} className="ringing-bell-anim" />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <strong style={{ fontSize: '0.78rem', color: '#fff', display: 'block', fontWeight: '800' }}>{activeToast.title}</strong>
+            <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.85)', margin: '2px 0 0 0', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{activeToast.body}</p>
+          </div>
+          <button 
+            onClick={() => setActiveToast(null)} 
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255,255,255,0.5)',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              borderRadius: '50%',
+              transition: 'background 0.2s'
+            }}
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
 

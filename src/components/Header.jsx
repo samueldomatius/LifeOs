@@ -9,7 +9,8 @@ export default function Header({
   streakCount, 
   isStreakActive,
   userProfile,
-  onOpenProfile
+  onOpenProfile,
+  hasUnreadNotifications
 }) {
   return (
     <header className="phone-header">
@@ -35,8 +36,22 @@ export default function Header({
           className="circular-utility-btn" 
           title="Notifikasi"
           onClick={onOpenNotifications}
+          style={{ position: 'relative' }}
         >
           <Bell size={16} />
+          {hasUnreadNotifications && (
+            <span style={{
+              position: 'absolute',
+              top: '4px',
+              right: '4px',
+              width: '8px',
+              height: '8px',
+              background: 'var(--accent-coral)',
+              borderRadius: '50%',
+              boxShadow: '0 0 6px var(--accent-coral)',
+              border: '1.5px solid var(--card-bg-solid)'
+            }} />
+          )}
         </button>
         
         <button 

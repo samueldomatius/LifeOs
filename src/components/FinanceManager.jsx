@@ -96,8 +96,23 @@ export default function FinanceManager({
   const [newDebtDueDate, setNewDebtDueDate] = useState('');
 
   // AI Advisor states
-  const [aiAdviceData, setAiAdviceData] = useState(null);
+  const [aiAdviceData, setAiAdviceData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('lifeos_ai_finance_advice');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [isLoadingAdvice, setIsLoadingAdvice] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (aiAdviceData) {
+        localStorage.setItem('lifeos_ai_finance_advice', JSON.stringify(aiAdviceData));
+      }
+    } catch (e) {}
+  }, [aiAdviceData]);
 
   // Month navigation for Monthly calendar overview
   const [currentYearMonth, setCurrentYearMonth] = useState(() => selectedDate ? selectedDate.substring(0, 7) : '2026-05');
