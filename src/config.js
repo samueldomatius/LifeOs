@@ -3,7 +3,8 @@
 const PROD_API_URL = 'https://life-os-umber-kappa.vercel.app'; 
 const DEV_API_URL = 'http://localhost:5000';
 
-export const API_URL = typeof window !== 'undefined' && 
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? DEV_API_URL
-    : PROD_API_URL;
+const isLocalDev = typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+  !window.Capacitor; 
+
+export const API_URL = isLocalDev ? DEV_API_URL : PROD_API_URL;
