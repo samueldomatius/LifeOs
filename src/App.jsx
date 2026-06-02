@@ -770,6 +770,7 @@ export default function App() {
 
   const lifeScoreObj = calculateLifeScore(currentDay, filteredTasks, filteredFinances);
   const { finalScore, breakdown } = lifeScoreObj;
+  const breakdownStr = JSON.stringify(breakdown);
 
   const [aiExplanation, setAiExplanation] = useState({
     explanation: 'AI Core sedang memproses LQS hari ini... 🧠',
@@ -830,7 +831,11 @@ export default function App() {
               if (dbData.debts) setDebts(dbData.debts);
               if (dbData.history) setHistory(dbData.history);
               if (dbData.chatHistory) setChatHistory(dbData.chatHistory);
-              if (dbData.userProfile && Object.keys(dbData.userProfile).length > 0) setUserProfile(dbData.userProfile);
+              if (dbData.userProfile && Object.keys(dbData.userProfile).length > 0) {
+                setUserProfile(dbData.userProfile);
+                if (dbData.userProfile.aiSummariesCache) setAiSummariesCache(dbData.userProfile.aiSummariesCache);
+                if (dbData.userProfile.aiExplanationsCache) setAiExplanationsCache(dbData.userProfile.aiExplanationsCache);
+              }
             }
           }
           lastPulledUserIdRef.current = userId;
@@ -869,7 +874,11 @@ export default function App() {
               if (dbData.debts) setDebts(dbData.debts);
               if (dbData.history) setHistory(dbData.history);
               if (dbData.chat_history) setChatHistory(dbData.chat_history);
-              if (dbData.user_profile && Object.keys(dbData.user_profile).length > 0) setUserProfile(dbData.user_profile);
+              if (dbData.user_profile && Object.keys(dbData.user_profile).length > 0) {
+                setUserProfile(dbData.user_profile);
+                if (dbData.user_profile.aiSummariesCache) setAiSummariesCache(dbData.user_profile.aiSummariesCache);
+                if (dbData.user_profile.aiExplanationsCache) setAiExplanationsCache(dbData.user_profile.aiExplanationsCache);
+              }
             }
           }
           lastPulledUserIdRef.current = userId;
@@ -998,8 +1007,10 @@ export default function App() {
       const updatedHistory = [...history, newDayObj];
       setHistory(updatedHistory);
       setSelectedDayIndex(updatedHistory.length - 1);
+      setCurrentDay(newDayObj);
     } else {
       setSelectedDayIndex(existingIndex);
+      setCurrentDay(history[existingIndex]);
     }
   }, [selectedDate]);
 
@@ -1023,13 +1034,20 @@ export default function App() {
         if (active) {
           setDailySummary(result);
           // Save to cache
-          setAiSummariesCache(prev => ({
-            ...prev,
-            [selectedDate]: {
-              fingerprint: currentFingerprint,
-              summary: result
-            }
-          }));
+          setAiSummariesCache(prev => {
+            const updated = {
+              ...prev,
+              [selectedDate]: {
+                fingerprint: currentFingerprint,
+                summary: result
+              }
+            };
+            setUserProfile(profile => ({
+              ...profile,
+              aiSummariesCache: updated
+            }));
+            return updated;
+          });
         }
       } catch (e) {
         console.error("AI daily summary request failed:", e);
@@ -1141,13 +1159,20 @@ export default function App() {
         if (active) {
           setAiExplanation(result);
           // Save to cache
-          setAiExplanationsCache(prev => ({
-            ...prev,
-            [selectedDate]: {
-              fingerprint: currentFingerprint,
-              explanation: result
-            }
-          }));
+          setAiExplanationsCache(prev => {
+            const updated = {
+              ...prev,
+              [selectedDate]: {
+                fingerprint: currentFingerprint,
+                explanation: result
+              }
+            };
+            setUserProfile(profile => ({
+              ...profile,
+              aiExplanationsCache: updated
+            }));
+            return updated;
+          });
         }
       } catch (e) {
         console.error("AI explanation request failed:", e);
@@ -1166,15 +1191,85 @@ export default function App() {
       active = false;
       clearTimeout(delayDebounce);
     };
-  }, [selectedDate, dbLoading, tasks, finances, currentDay, userId, finalScore, breakdown]);
+  }, [selectedDate, dbLoading, tasks, finances, currentDay, userId, finalScore, breakdownStr]);
   
   const insightsList = generatePatternInsights(history);
 
+  const handlePrintReport = (mode) => {
+    // Mode can be 'full', 'financial', 'tasks'
+    document.body.classList.remove('print-mode-full', 'print-mode-financial', 'print-mode-tasks');
+    document.body.classList.add(`print-mode-${mode}`);
+
+    // Check if we are on a mobile device
+    const isMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      // On mobile, load html2pdf.js dynamically from CDN for file-saving
+      if (!window.html2pdf) {
+        setActiveToast({ title: "Mempersiapkan PDF...", body: "Mengunduh modul PDF generator ke perangkat HP Anda. Mohon tunggu..." });
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        script.onload = () => {
+          generatePDFWithLibrary(mode);
+        };
+        script.onerror = () => {
+          setActiveToast({ title: "Gagal Mengunduh PDF Engine", body: "Mengalihkan ke halaman cetak browser default." });
+          window.print();
+          document.body.classList.remove(`print-mode-${mode}`);
+        };
+        document.head.appendChild(script);
+      } else {
+        generatePDFWithLibrary(mode);
+      }
+    } else {
+      // Desktop uses native browser printing
+      setTimeout(() => {
+        window.print();
+        document.body.classList.remove(`print-mode-${mode}`);
+      }, 300);
+    }
+  };
+
+  const generatePDFWithLibrary = (mode) => {
+    const element = document.querySelector('.printable-reports-wrapper');
+    if (!element) {
+      document.body.classList.remove(`print-mode-${mode}`);
+      return;
+    }
+    
+    // Temporarily force display block for PDF generation wrapper
+    const originalDisplay = element.style.display;
+    element.style.display = 'block';
+
+    const opt = {
+      margin:       [8, 8, 8, 8],
+      filename:     `Laporan_${mode}_${new Date().toLocaleDateString('id-ID')}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, scrollY: 0 },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    window.html2pdf().from(element).set(opt).save().then(() => {
+      element.style.display = originalDisplay;
+      document.body.classList.remove(`print-mode-${mode}`);
+      setActiveToast({ title: "PDF Berhasil Diunduh!", body: "Laporan tersimpan di folder download HP Anda." });
+    }).catch(err => {
+      console.error("PDF engine crash, falling back:", err);
+      element.style.display = originalDisplay;
+      window.print();
+      document.body.classList.remove(`print-mode-${mode}`);
+    });
+  };
+
   // Gamified streak calculations
-  const isStreakActive = filteredTasks.length > 0 && filteredTasks.every(t => t.status === 'completed');
   const getStreakCount = () => {
     let streak = 0;
-    let currentDateObj = new Date(selectedDate);
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+    
+    // Start evaluating backwards from actual today's date
+    let currentDateObj = new Date(todayStr);
+    
     for (let i = 0; i < 30; i++) {
       const year = currentDateObj.getFullYear();
       const month = (currentDateObj.getMonth() + 1).toString().padStart(2, '0');
@@ -1187,7 +1282,12 @@ export default function App() {
         if (allCompleted) {
           streak++;
         } else {
-          break; // streak broke
+          // If we are evaluating today, do not break the streak for unfinished tasks
+          if (dateStr === todayStr) {
+            // Keep going to check previous days
+          } else {
+            break; // streak broke on a past day
+          }
         }
       } else {
         const histDay = history.find(h => h.date === dateStr);
@@ -1197,7 +1297,11 @@ export default function App() {
           if (completedCount > 0 && snoozedCount === 0) {
             streak++;
           } else if (completedCount > 0 || snoozedCount > 0) {
-            break; // streak broke
+            if (dateStr === todayStr) {
+              // Keep going to check previous days
+            } else {
+              break; // streak broke
+            }
           }
         }
       }
@@ -1206,6 +1310,7 @@ export default function App() {
     return streak;
   };
   const streakCount = getStreakCount();
+  const isStreakActive = streakCount > 0;
 
   // --- Calendar Day Navigator ---
   const handleSelectCalendarDay = (isSeededRange, index, dayNum, dateStr) => {
@@ -2543,6 +2648,7 @@ export default function App() {
           }}
           focusTask={focusTask}
           dailySummary={dailySummary}
+          onPrintReport={handlePrintReport}
         />
       )}
 
@@ -2577,17 +2683,14 @@ export default function App() {
           onDeleteAsset={handleDeleteAsset}
           onUpdateSpendCap={handleUpdateSpendCap}
           finances={finances}
+          onPrintReport={handlePrintReport}
           onPrintFullReport={async () => {
             let currentSummary = aiSummary;
             if (!currentSummary) {
               setActiveToast({ title: "Menganalisis Laporan...", body: "AI sedang menyusun kesimpulan laporan bulanan Anda. Mohon tunggu." });
               currentSummary = await fetchAiSummary();
             }
-            document.body.classList.remove('print-mode-full', 'print-mode-financial', 'print-mode-tasks');
-            document.body.classList.add('print-mode-full');
-            setTimeout(() => {
-              window.print();
-            }, 200);
+            handlePrintReport('full');
           }}
         />
       )}

@@ -33,7 +33,8 @@ export default function TasksManager({
   formatDateHeader,
   onSelectFocusTask,
   focusTask,
-  dailySummary
+  dailySummary,
+  onPrintReport
 }) {
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editTaskText, setEditTaskText] = useState('');
@@ -116,11 +117,15 @@ export default function TasksManager({
         <span className="subpanel-title">⚡ Tasks & Focus Blocks</span>
         <button
           onClick={() => {
-            document.body.classList.remove('print-mode-full', 'print-mode-financial', 'print-mode-tasks');
-            document.body.classList.add('print-mode-tasks');
-            setTimeout(() => {
-              window.print();
-            }, 150);
+            if (typeof onPrintReport === 'function') {
+              onPrintReport('tasks');
+            } else {
+              document.body.classList.remove('print-mode-full', 'print-mode-financial', 'print-mode-tasks');
+              document.body.classList.add('print-mode-tasks');
+              setTimeout(() => {
+                window.print();
+              }, 150);
+            }
           }}
           className="premium-print-btn active-glow-purple"
         >

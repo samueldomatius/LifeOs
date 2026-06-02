@@ -32,21 +32,17 @@ export default function FinanceManager({
   onAddAsset,
   onUpdateAssetBalance,
   onDeleteAsset,
-  onPrintFullReport
+  onPrintFullReport,
+  onPrintReport
 }) {
   const [activeTab, setActiveTab] = useState('summary'); // 'summary', 'wallets', 'savings_debts', 'monthly_cal', 'ai_advice', 'split_bill'
   const [showTxnSheet, setShowTxnSheet] = useState(false);
 
   // Split Bill States
-  const [splitMerchant, setSplitMerchant] = useState('Restoran Sunda');
-  const [splitItems, setSplitItems] = useState([
-    { id: 0, name: "Nasi Liwet", price: 15000, quantity: 2, assignedTo: ['Saya'] },
-    { id: 1, name: "Ayam Goreng", price: 22000, quantity: 2, assignedTo: ['Saya'] },
-    { id: 2, name: "Es Teh Manis", price: 6000, quantity: 2, assignedTo: ['Saya'] },
-    { id: 3, name: "Sambal Dadak", price: 5000, quantity: 1, assignedTo: ['Saya'] }
-  ]);
-  const [splitTaxAndService, setSplitTaxAndService] = useState(9000);
-  const [splitFriends, setSplitFriends] = useState(['Saya', 'Budi', 'Siti']);
+  const [splitMerchant, setSplitMerchant] = useState('');
+  const [splitItems, setSplitItems] = useState([]);
+  const [splitTaxAndService, setSplitTaxAndService] = useState(0);
+  const [splitFriends, setSplitFriends] = useState(['Saya']);
   const [friendInput, setFriendInput] = useState('');
   const [receiptImage, setReceiptImage] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -509,11 +505,15 @@ export default function FinanceManager({
         <div style={{ display: 'flex', gap: '6px' }}>
           <button
             onClick={() => {
-              document.body.classList.remove('print-mode-full', 'print-mode-financial', 'print-mode-tasks');
-              document.body.classList.add('print-mode-financial');
-              setTimeout(() => {
-                window.print();
-              }, 150);
+              if (typeof onPrintReport === 'function') {
+                onPrintReport('financial');
+              } else {
+                document.body.classList.remove('print-mode-full', 'print-mode-financial', 'print-mode-tasks');
+                document.body.classList.add('print-mode-financial');
+                setTimeout(() => {
+                  window.print();
+                }, 150);
+              }
             }}
             className="premium-print-btn"
           >

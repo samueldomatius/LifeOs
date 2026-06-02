@@ -903,17 +903,7 @@ Extract:
     });
     return safeParseJSON(rawText);
   } catch (error) {
-    console.error("Gemini split bill scanning failed, using mock fallback:", error);
-    return {
-      merchant: "Restoran Sunda",
-      items: [
-        { name: "Nasi Liwet", price: 15000, quantity: 2 },
-        { name: "Ayam Goreng", price: 22000, quantity: 2 },
-        { name: "Es Teh Manis", price: 6000, quantity: 2 },
-        { name: "Sambal Dadak", price: 5000, quantity: 1 }
-      ],
-      taxAndService: 9000,
-      totalAmount: 99000
-    };
+    console.error("Gemini split bill scanning failed:", error);
+    throw error;
   }
 };

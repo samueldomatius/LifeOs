@@ -309,6 +309,39 @@ export default function ProfileManager({
           </div>
         </div>
 
+        {/* Notification Permission Card */}
+        <div className="glass-panel volt-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', padding: '1.25rem' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            🔔 NOTIFIKASI PENGINGAT SISTEM
+          </span>
+          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.3 }}>
+            Aktifkan notifikasi sistem browser agar pengingat tugas harian tetap muncul di HP atau PC Anda. (Catatan: Memerlukan koneksi aman HTTPS atau localhost).
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              if (!('Notification' in window)) {
+                alert('Browser Anda tidak mendukung notifikasi sistem. Tenang, pengingat pop-up in-app toast tetap berjalan otomatis!');
+                return;
+              }
+              Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                  new Notification("🎉 Notifikasi Aktif!", {
+                    body: "Pengingat tugas harian LifeOS siap digunakan di perangkat ini.",
+                  });
+                  alert('Sukses mengizinkan notifikasi sistem! Sekarang Anda akan menerima pengingat langsung di layar HP/PC Anda.');
+                } else {
+                  alert('Izin notifikasi ditolak atau diblokir browser. Silakan aktifkan izin notifikasi secara manual di info situs/pengaturan browser Anda.');
+                }
+              });
+            }}
+            className="premium-print-btn active-glow-volt"
+            style={{ width: '100%', padding: '10px', fontSize: '0.72rem', borderRadius: '10px', justifyContent: 'center', marginTop: '4px' }}
+          >
+            Aktifkan Izin Notifikasi Sistem
+          </button>
+        </div>
+
         {/* Logout Button */}
         <button
           type="button"
