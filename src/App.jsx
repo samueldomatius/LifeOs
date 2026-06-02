@@ -36,6 +36,8 @@ import GoalsManager from './components/GoalsManager';
 import ProfileManager from './components/ProfileManager';
 import GrowthGarden from './components/GrowthGarden';
 import AuthScreen from './components/AuthScreen';
+import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { startFocusSound, stopFocusSound } from './utils/focusSynth';
 import { isSupabaseConfigured, pullUserData, pushUserData } from './utils/supabaseClient';
 import { checkPrismaReachable, pullUserDataPrisma, pushUserDataPrisma } from './utils/prismaClient';
@@ -477,6 +479,56 @@ export default function App() {
       if (Notification.permission === 'default') {
         Notification.requestPermission();
       }
+    }
+
+    // Capacitor Native Push Notification setup
+    if (Capacitor.isNativePlatform()) {
+      const registerPush = async () => {
+        try {
+          let permStatus = await PushNotifications.checkPermissions();
+          if (permStatus.receive === 'prompt') {
+            permStatus = await PushNotifications.requestPermissions();
+          }
+          if (permStatus.receive === 'granted') {
+            await PushNotifications.register();
+          }
+        } catch (err) {
+          console.warn("Push permissions check failed:", err);
+        }
+      };
+
+      // Add push listeners
+      PushNotifications.addListener('registration', (token) => {
+        console.log('Push registration success, token:', token.value);
+        // Save FCM token inside userProfile to sync automatically to Supabase / Prisma DB!
+        setUserProfile(prev => {
+          if (prev.pushToken === token.value) return prev;
+          return {
+            ...prev,
+            pushToken: token.value
+          };
+        });
+      });
+
+      PushNotifications.addListener('registrationError', (error) => {
+        console.error('Push registration error:', error);
+      });
+
+      PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        console.log('Push notification received in foreground:', notification);
+        // Show an in-app toast for foreground push
+        setActiveToast({
+          id: Date.now(),
+          title: notification.title || "⏰ LifeOS Notification",
+          body: notification.body || ""
+        });
+      });
+
+      PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+        console.log('Push notification action performed:', action);
+      });
+
+      registerPush();
     }
   }, []);
 

@@ -57,3 +57,5 @@ coverage/
 *.zip
 
 .env
+
+.vercel

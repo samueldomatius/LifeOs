@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "587490898925",
+    "project_id": "lifeos-c486f",
+    "storage_bucket": "lifeos-c486f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:587490898925:android:64d1ddbe3f1f511836ede4",
+        "android_client_info": {
+          "package_name": "com.samueldomatius.lifeos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC99rBiFp8CvPYxk2Fzqy3RSHAP9egcag0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
