@@ -104,10 +104,10 @@ ${schemaStr}`;
       }
 
       const openRouterModels = [
-        "google/gemini-1.5-flash:free",
         "openrouter/free",
-        "google/gemini-2.5-flash",
-        "deepseek/deepseek-chat"
+        "deepseek/deepseek-r1:free",
+        "meta-llama/llama-3-8b-instruct:free",
+        "google/gemini-2.5-flash"
       ];
       
       const modelErrors = [];
@@ -125,6 +125,10 @@ ${schemaStr}`;
             requestBody.response_format = { type: "json_object" };
           }
 
+          const controller = new AbortController();
+          const timeoutDuration = modelName.includes("free") ? 3500 : 7000; // 3.5s timeout for free models to fail fast
+          const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
+
           const response = await fetch(url, {
             method: "POST",
             headers: {
@@ -133,8 +137,10 @@ ${schemaStr}`;
               "HTTP-Referer": "https://lifeos.local",
               "X-Title": "LifeOS App"
             },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify(requestBody),
+            signal: controller.signal
           });
+          clearTimeout(timeoutId);
 
           if (response.ok) {
             const data = await response.json();
@@ -192,6 +198,9 @@ ${schemaStr}`;
             });
           }
 
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout for native
+
           const response = await fetch(url, {
             method: "POST",
             headers: {
@@ -205,8 +214,10 @@ ${schemaStr}`;
                 }
               ],
               generationConfig
-            })
+            }),
+            signal: controller.signal
           });
+          clearTimeout(timeoutId);
 
           if (response.ok) {
             const data = await response.json();
@@ -405,7 +416,8 @@ Jika pengguna meminta Anda melakukan tindakan tertentu seperti mencatat pengelua
 }
 \`\`\`
 
-2. Menambah Tugas Baru (Bisa menyertakan jam mulai & selesai jika disebutkan):
+2. Menambah Tugas Baru (Mendukung tugas tunggal atau banyak tugas sekaligus secara simultan):
+Untuk tugas tunggal:
 \`\`\`action_trigger
 {
   "type": "ADD_TASK",
@@ -413,9 +425,35 @@ Jika pengguna meminta Anda melakukan tindakan tertentu seperti mencatat pengelua
     "text": "Belajar Pemrograman React",
     "priority": "high",  // "high", "medium", "low"
     "tag": "Productivity",  // "Productivity", "Health", "Finance", "Social", "Growth", "Other"
-    "date": "2026-05-29",   // tanggal target YYYY-MM-DD
-    "time": "19:00",        // format 24 jam HH:MM secara AKURAT. Contoh: "jam 7 malam" -> "19:00", "jam 7 pagi" -> "07:00", "jam 1 siang" -> "13:00", "jam 5 sore" -> "17:00". Jangan pernah asal menebak jam 9 pagi jika disebut malam!
-    "endTime": "20:00"     // format 24 jam HH:MM (opsional jika disebutkan)
+    "date": "2026-05-29",   // YYYY-MM-DD
+    "time": "19:00",        // format 24 jam HH:MM secara AKURAT
+    "endTime": "20:00"     // format 24 jam HH:MM (opsional)
+  }
+}
+\`\`\`
+Untuk banyak tugas sekaligus (multiple tasks):
+\`\`\`action_trigger
+{
+  "type": "ADD_TASK",
+  "payload": {
+    "tasks": [
+      {
+        "text": "Tugas 1 (e.g. Rapat Project)",
+        "priority": "high",
+        "tag": "Productivity",
+        "date": "2026-06-02",
+        "time": "14:00",
+        "endTime": "15:00"
+      },
+      {
+        "text": "Tugas 2 (e.g. Beli Susu)",
+        "priority": "low",
+        "tag": "Other",
+        "date": "2026-06-02",
+        "time": "17:00",
+        "endTime": ""
+      }
+    ]
   }
 }
 \`\`\`
@@ -744,4 +782,138 @@ Financial Goals: ${JSON.stringify(goals || [])}
     };
   }
 };
-//test
+
+// Generates monthly summary review (tasks + finances) using Google Gemini API
+export const getAIMonthlySummary = async (tasks, finances) => {
+  const systemPrompt = `
+You are LifeOS AI Executive Advisor, an analytical yet friendly and witty Gen Z Personal Coach.
+Analyze the user's monthly progress:
+1. Tasks: Completed, Pending, completion rate.
+2. Finances: Total Income, Total Expenses, Sisa Saldo.
+Provide a dynamic, beautiful, and deeply insightful summary and critique of their productivity and financial habits.
+Tone: Supportive, insightful, using smart Indonesian Gen Z slang (e.g. "gaul", "bestie", "jebol", "mantap", "productive era").
+`;
+
+  const summarySchema = {
+    type: "OBJECT",
+    properties: {
+      conclusion: {
+        type: "STRING",
+        description: "Dynamic paragraph summarizing their month, explaining the correlation between their productivity and financial health. Use bolding where relevant."
+      },
+      strengths: {
+        type: "ARRAY",
+        items: { type: "STRING" },
+        description: "Exactly 2 positive behaviors observed this month."
+      },
+      improvements: {
+        type: "ARRAY",
+        items: { type: "STRING" },
+        description: "Exactly 2 critical improvement points/critiques for their spending or tasks."
+      }
+    },
+    required: ["conclusion", "strengths", "improvements"]
+  };
+
+  const safeTasks = tasks || [];
+  const safeFinances = finances || [];
+
+  const completedTasks = safeTasks.filter(t => t.status === 'completed');
+  const pendingTasks = safeTasks.filter(t => t.status === 'pending');
+  const completionRate = safeTasks.length > 0 ? Math.round((completedTasks.length / safeTasks.length) * 100) : 0;
+
+  const totalExpense = safeFinances.filter(f => f.type === 'expense').reduce((sum, f) => sum + f.amount, 0);
+  const totalIncome = safeFinances.filter(f => f.type === 'income').reduce((sum, f) => sum + f.amount, 0);
+  const netBalance = totalIncome - totalExpense;
+
+  const userPrompt = `
+MONTHLY PERFORMANCE DATA:
+Productivity:
+- Total Tasks Created: ${safeTasks.length}
+- Completed: ${completedTasks.length}
+- Pending: ${pendingTasks.length}
+- Completion Rate: ${completionRate}%
+- Task details (up to 15): ${JSON.stringify(safeTasks.slice(0, 15).map(t => ({ text: t.text, status: t.status })))}
+
+Finance:
+- Total Income: Rp ${totalIncome.toLocaleString('id-ID')}
+- Total Expenses: Rp ${totalExpense.toLocaleString('id-ID')}
+- Sisa Saldo: Rp ${netBalance.toLocaleString('id-ID')}
+- Transactions list (up to 15): ${JSON.stringify(safeFinances.slice(0, 15).map(f => ({ desc: f.description, type: f.type, amount: f.amount, cat: f.category })))}
+`;
+
+  try {
+    const rawText = await callGemini(systemPrompt, userPrompt, summarySchema);
+    return safeParseJSON(rawText);
+  } catch (error) {
+    console.error("Gemini monthly summary failed, using mock fallback:", error);
+    return {
+      conclusion: `Wah bestie, koneksi AI Advisor lagi agak bapuk nih. Tapi dari rekap bulan ini, kamu punya **${completedTasks.length} tugas selesai** (rasio sukses **${completionRate}%**) dan sisa saldo kamu berada di angka **Rp ${netBalance.toLocaleString('id-ID')}**. Tetap atur pengeluaran biar ga overbudget ya! 🚀`,
+      strengths: [
+        `Berhasil menyelesaikan ${completedTasks.length} agenda/tugas penting tepat waktu.`,
+        "Konsisten melacak pengeluaran harian dan pemasukan bulanan."
+      ],
+      improvements: [
+        "Masih ada beberapa tugas tertunda, coba pecah tugas besar jadi langkah kecil.",
+        "Kurangi pengeluaran impulsif agar sisa saldo bulanan bisa lebih maksimal disaving."
+      ]
+    };
+  }
+};
+
+// Multimodal receipt OCR scanner for Split Bill functionality
+export const scanReceiptForSplitBill = async (base64Data, mimeType) => {
+  const systemPrompt = `
+You are an expert OCR split bill scanner. Analyze the receipt image provided.
+Identify all text, store names, prices, items, quantities, and totals.
+Extract:
+1. Merchant/Store name.
+2. List of items: For each item, extract the name, price per unit (integer), and quantity.
+3. Subtotal, taxes, service charges, or discount amount.
+4. Total amount paid.
+`;
+
+  const splitBillSchema = {
+    type: "OBJECT",
+    properties: {
+      merchant: { type: "STRING", description: "Name of the merchant/store" },
+      items: {
+        type: "ARRAY",
+        items: {
+          type: "OBJECT",
+          properties: {
+            name: { type: "STRING", description: "Item description/name" },
+            price: { type: "INTEGER", description: "Unit price of the item" },
+            quantity: { type: "INTEGER", description: "Quantity purchased" }
+          },
+          required: ["name", "price", "quantity"]
+        },
+        description: "List of items purchased"
+      },
+      taxAndService: { type: "INTEGER", description: "Sum of taxes, service fees, and other surcharges minus any discounts (integer)" },
+      totalAmount: { type: "INTEGER", description: "The final total paid amount as an integer" }
+    },
+    required: ["merchant", "items", "taxAndService", "totalAmount"]
+  };
+
+  try {
+    const rawText = await callGemini(systemPrompt, null, splitBillSchema, {
+      mimeType: mimeType,
+      data: base64Data
+    });
+    return safeParseJSON(rawText);
+  } catch (error) {
+    console.error("Gemini split bill scanning failed, using mock fallback:", error);
+    return {
+      merchant: "Restoran Sunda",
+      items: [
+        { name: "Nasi Liwet", price: 15000, quantity: 2 },
+        { name: "Ayam Goreng", price: 22000, quantity: 2 },
+        { name: "Es Teh Manis", price: 6000, quantity: 2 },
+        { name: "Sambal Dadak", price: 5000, quantity: 1 }
+      ],
+      taxAndService: 9000,
+      totalAmount: 99000
+    };
+  }
+};

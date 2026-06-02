@@ -47,7 +47,8 @@ import {
   generatePatternInsights, 
   getSeededHistory,
   getAIDailySummary,
-  getAIFinanceAdvice
+  getAIFinanceAdvice,
+  getAIMonthlySummary
 } from './utils/aiEngine';
 
 // Default tasks mapped to March 2026 dates (matching calendar)
@@ -262,6 +263,59 @@ export default function App() {
     } catch(e) {}
     return { ...INITIAL_CURRENT_DAY, date: todayStr };
   });
+
+  const [aiSummary, setAiSummary] = useState(null);
+  const [loadingAi, setLoadingAi] = useState(false);
+
+  const fetchAiSummary = async () => {
+    // Generate signature representing the state of tasks and finances
+    const signature = JSON.stringify({
+      tasks: (tasks || []).map(t => ({ id: t.id, status: t.status })),
+      finances: (finances || []).map(f => ({ id: f.id, amount: f.amount }))
+    });
+
+    // Check if cached summary matches the signature
+    if (userProfile?.aiSummaryCache && userProfile.aiSummaryCache.signature === signature) {
+      console.log("Using cached AI Summary from database/userProfile");
+      setAiSummary(userProfile.aiSummaryCache.summary);
+      return userProfile.aiSummaryCache.summary;
+    }
+
+    setLoadingAi(true);
+    try {
+      const summary = await getAIMonthlySummary(tasks, finances);
+      
+      const updatedProfile = {
+        ...userProfile,
+        aiSummaryCache: {
+          signature,
+          summary
+        }
+      };
+      
+      // Update profile and trigger instant database/localStorage sync
+      handleUpdateProfile(updatedProfile);
+      setAiSummary(summary);
+      return summary;
+    } catch (e) {
+      console.error(e);
+      const completedTasksCount = (tasks || []).filter(t => t.status === 'completed').length;
+      const rate = (tasks || []).length > 0 ? Math.round((completedTasksCount / tasks.length) * 100) : 0;
+      const totalIncome = (finances || []).filter(f => f.type === 'income').reduce((sum, f) => sum + f.amount, 0);
+      const totalExpense = (finances || []).filter(f => f.type === 'expense').reduce((sum, f) => sum + f.amount, 0);
+      const net = totalIncome - totalExpense;
+
+      const fallback = {
+        conclusion: `Koneksi AI Advisor terputus. Rekap bulan ini: **${completedTasksCount} tugas selesai** (rasio sukses **${rate}%**) dan sisa saldo Anda **Rp ${net.toLocaleString('id-ID')}**.`,
+        strengths: ["Melacak pengeluaran harian dengan tertib.", "Menyelesaikan agenda produktivitas penting."],
+        improvements: ["Mengurangi pengeluaran non-prioritas.", "Mengurangi tugas tertunda."]
+      };
+      setAiSummary(fallback);
+      return fallback;
+    } finally {
+      setLoadingAi(false);
+    }
+  };
 
   const [tasks, setTasks] = useState(() => {
     try {
@@ -1632,19 +1686,35 @@ export default function App() {
             }));
           }
         } else if (actionTriggered.type === 'ADD_TASK') {
-          const { text, priority, tag, date, time, endTime } = actionTriggered.payload;
-          const newTask = {
-            id: `task_${Date.now()}`,
-            text: text || 'Tugas Baru (Rekomendasi AI) 📝',
-            priority: priority || 'medium',
-            tag: tag || 'Productivity',
-            status: 'pending',
-            dueDate: date || selectedDate,
-            time: time || '',
-            endTime: endTime || '',
-            snoozeCount: 0
-          };
-          setTasks(prev => [...prev, newTask]);
+          const payload = actionTriggered.payload;
+          if (payload.tasks && Array.isArray(payload.tasks)) {
+            const newTasksList = payload.tasks.map((task, idx) => ({
+              id: `task_${Date.now()}_${idx}`,
+              text: task.text || 'Tugas Baru (Rekomendasi AI) 📝',
+              priority: task.priority || 'medium',
+              tag: task.tag || 'Productivity',
+              status: 'pending',
+              dueDate: task.date || selectedDate,
+              time: task.time || '',
+              endTime: task.endTime || '',
+              snoozeCount: 0
+            }));
+            setTasks(prev => [...prev, ...newTasksList]);
+          } else {
+            const { text, priority, tag, date, time, endTime } = payload;
+            const newTask = {
+              id: `task_${Date.now()}`,
+              text: text || 'Tugas Baru (Rekomendasi AI) 📝',
+              priority: priority || 'medium',
+              tag: tag || 'Productivity',
+              status: 'pending',
+              dueDate: date || selectedDate,
+              time: time || '',
+              endTime: endTime || '',
+              snoozeCount: 0
+            };
+            setTasks(prev => [...prev, newTask]);
+          }
         } else if (actionTriggered.type === 'RESCHEDULE_TASKS') {
           const { taskIds, nextDate } = actionTriggered.payload;
           if (taskIds && nextDate) {
@@ -1784,6 +1854,22 @@ export default function App() {
       </div>
     );
   }
+
+  // Print metrics computations
+  const printIncome = finances.filter(f => f.type === 'income').reduce((sum, f) => sum + f.amount, 0);
+  const printExpense = finances.filter(f => f.type === 'expense').reduce((sum, f) => sum + f.amount, 0);
+  const printBalance = printIncome - printExpense;
+
+  const printCategorySummary = {};
+  finances.forEach(f => {
+    if (f.type === 'expense') {
+      printCategorySummary[f.category] = (printCategorySummary[f.category] || 0) + f.amount;
+    }
+  });
+
+  const printCompletedTasks = tasks.filter(t => t.status === 'completed');
+  const printPendingTasks = tasks.filter(t => t.status === 'pending');
+  const printCompletionRate = tasks.length > 0 ? Math.round((printCompletedTasks.length / tasks.length) * 100) : 0;
 
   return (
     <div className={`app-viewport theme-transition ${theme}`}>
@@ -2491,6 +2577,18 @@ export default function App() {
           onDeleteAsset={handleDeleteAsset}
           onUpdateSpendCap={handleUpdateSpendCap}
           finances={finances}
+          onPrintFullReport={async () => {
+            let currentSummary = aiSummary;
+            if (!currentSummary) {
+              setActiveToast({ title: "Menganalisis Laporan...", body: "AI sedang menyusun kesimpulan laporan bulanan Anda. Mohon tunggu." });
+              currentSummary = await fetchAiSummary();
+            }
+            document.body.classList.remove('print-mode-full', 'print-mode-financial', 'print-mode-tasks');
+            document.body.classList.add('print-mode-full');
+            setTimeout(() => {
+              window.print();
+            }, 200);
+          }}
         />
       )}
 
@@ -2528,6 +2626,11 @@ export default function App() {
           gpsSeconds={gpsSeconds}
           gpsDistance={gpsDistance}
           isTrackingGps={isTrackingGps}
+          tasks={tasks}
+          finances={finances}
+          assets={resolvedAssets}
+          savings={savings}
+          debts={debts}
         />
       )}
 
@@ -2713,6 +2816,285 @@ export default function App() {
         chatBottomRef={chatBottomRef}
         isQuotaExceeded={isQuotaExceeded}
       />
+
+      {/* Global Printable Reports (Only visible under @media print) */}
+      <div className="printable-reports-wrapper print-only">
+        
+        {/* REPORT HEADER */}
+        <div style={{ borderBottom: '3px double #333', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
+          <h1 style={{ margin: 0, fontSize: '1.8rem', color: '#000', textAlign: 'center' }}>
+            📄 LAPORAN BULANAN RESMI - LifeOS
+          </h1>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#666', textAlign: 'center' }}>
+            Dicetak pada: {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
+        </div>
+
+        {/* 1. FINANCIAL REPORT SECTION */}
+        <div className="financial-section">
+          <div className="section-title-badge" style={{ background: '#f5f5f5', border: '1px solid #ccc', padding: '10px 15px', borderRadius: '6px', marginBottom: '1rem', display: 'inline-block', fontWeight: 'bold' }}>
+            💰 RINGKASAN KEUANGAN
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px', marginBottom: '1.5rem' }}>
+            <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '10px' }}>
+              <span style={{ fontSize: '0.7rem', color: '#666', display: 'block' }}>TOTAL PEMASUKAN</span>
+              <strong style={{ fontSize: '1.1rem', color: '#00e676' }}>+ Rp {printIncome.toLocaleString('id-ID')}</strong>
+            </div>
+            <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '10px' }}>
+              <span style={{ fontSize: '0.7rem', color: '#666', display: 'block' }}>TOTAL PENGELUARAN</span>
+              <strong style={{ fontSize: '1.1rem', color: '#ff1744' }}>- Rp {printExpense.toLocaleString('id-ID')}</strong>
+            </div>
+            <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '10px' }}>
+              <span style={{ fontSize: '0.7rem', color: '#666', display: 'block' }}>SISA SALDO</span>
+              <strong style={{ fontSize: '1.1rem', color: printBalance >= 0 ? '#00e5ff' : '#ff9800' }}>
+                Rp {printBalance.toLocaleString('id-ID')}
+              </strong>
+            </div>
+          </div>
+
+          {/* Dompet Digital Balances */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '6px' }}>💳 Saldo Dompet Digital & Akun</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+              {(resolvedAssets || []).map(asset => (
+                <div key={asset.id} style={{ display: 'flex', justifyContent: 'space-between', border: '1px solid #eee', padding: '6px 10px', borderRadius: '6px' }}>
+                  <span style={{ fontSize: '0.75rem' }}>{asset.name}</span>
+                  <strong style={{ fontSize: '0.75rem' }}>Rp {asset.balance.toLocaleString('id-ID')}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Kategori Breakdown */}
+          {Object.keys(printCategorySummary).length > 0 && (
+            <div style={{ marginBottom: '1.5rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '8px' }}>🏷️ Kategori Pengeluaran Terbesar</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {Object.entries(printCategorySummary).sort((a,b) => b[1] - a[1]).map(([cat, amt]) => {
+                  const pct = printExpense > 0 ? Math.round((amt / printExpense) * 100) : 0;
+                  return (
+                    <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px dashed #eee', paddingBottom: '4px' }}>
+                      <span>{cat}</span>
+                      <strong>Rp {amt.toLocaleString('id-ID')} ({pct}%)</strong>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* BUKU BESAR DETAIL TRANSAKSI */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <div className="section-title-badge" style={{ background: '#f5f5f5', border: '1px solid #ccc', padding: '6px 12px', borderRadius: '4px', display: 'inline-block', fontWeight: 'bold', fontSize: '0.75rem', marginBottom: '8px' }}>
+              📖 BUKU BESAR TRANSAKSI
+            </div>
+            <table className="ledger-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+              <thead>
+                <tr style={{ background: '#f2f2f2' }}>
+                  <th style={{ padding: '6px', border: '1px solid #ccc' }}>Tanggal</th>
+                  <th style={{ padding: '6px', border: '1px solid #ccc' }}>Deskripsi</th>
+                  <th style={{ padding: '6px', border: '1px solid #ccc' }}>Kategori</th>
+                  <th style={{ padding: '6px', border: '1px solid #ccc' }}>Tipe</th>
+                  <th style={{ padding: '6px', border: '1px solid #ccc', textAlign: 'right' }}>Jumlah</th>
+                </tr>
+              </thead>
+              <tbody>
+                {finances.length > 0 ? (
+                  finances.map((tx, idx) => (
+                    <tr key={tx.id || idx}>
+                      <td style={{ padding: '6px', border: '1px solid #ccc' }}>{tx.date || '-'}</td>
+                      <td style={{ padding: '6px', border: '1px solid #ccc' }}>{tx.description}</td>
+                      <td style={{ padding: '6px', border: '1px solid #ccc' }}><span className="category-tag">{tx.category}</span></td>
+                      <td style={{ padding: '6px', border: '1px solid #ccc', fontWeight: 'bold', color: tx.type === 'income' ? '#00e676' : '#ff1744' }}>
+                        {tx.type === 'income' ? 'MASUK' : 'KELUAR'}
+                      </td>
+                      <td style={{ padding: '6px', border: '1px solid #ccc', textAlign: 'right', fontWeight: 'bold' }}>
+                        {tx.type === 'income' ? '+' : '-'} Rp {tx.amount.toLocaleString('id-ID')}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" style={{ textAlign: 'center', padding: '12px' }}>Tidak ada transaksi tercatat.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* TANGGUNGAN & TARGET KEUANGAN */}
+          <div style={{ marginBottom: '1.5rem', pageBreakInside: 'avoid' }}>
+            <div className="section-title-badge" style={{ background: '#f5f5f5', border: '1px solid #ccc', padding: '6px 12px', borderRadius: '4px', display: 'inline-block', fontWeight: 'bold', fontSize: '0.75rem', marginBottom: '8px' }}>
+              ⚖️ TANGGUNGAN & TARGET KEUANGAN
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+              {/* Savings */}
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', display: 'block', marginBottom: '6px', borderBottom: '1px solid #ccc', paddingBottom: '3px' }}>🎯 Target Tabungan & Impian</span>
+                <table className="ledger-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f2f2f2' }}>
+                      <th style={{ padding: '5px', border: '1px solid #ccc', textAlign: 'center' }}>No</th>
+                      <th style={{ padding: '5px', border: '1px solid #ccc' }}>Rencana</th>
+                      <th style={{ padding: '5px', border: '1px solid #ccc', textAlign: 'right' }}>Target</th>
+                      <th style={{ padding: '5px', border: '1px solid #ccc', textAlign: 'right' }}>Progres</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {savings.length > 0 ? (
+                      savings.map((s, idx) => {
+                        const pct = s.targetAmount > 0 ? Math.min(Math.round(((s.currentAmount || 0) / s.targetAmount) * 100), 100) : 0;
+                        return (
+                          <tr key={s.id}>
+                            <td style={{ padding: '5px', border: '1px solid #ccc', textAlign: 'center' }}>{idx + 1}</td>
+                            <td style={{ padding: '5px', border: '1px solid #ccc' }}>{s.title || s.name}</td>
+                            <td style={{ padding: '5px', border: '1px solid #ccc', textAlign: 'right' }}>Rp {Math.round(s.targetAmount).toLocaleString('id-ID')}</td>
+                            <td style={{ padding: '5px', border: '1px solid #ccc', textAlign: 'right', fontWeight: 'bold' }}>{pct}%</td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan="4" style={{ textAlign: 'center', padding: '5px', color: '#888' }}>Tidak ada.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {/* Debts */}
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', display: 'block', marginBottom: '6px', borderBottom: '1px solid #ccc', paddingBottom: '3px' }}>💸 Daftar Hutang & Cicilan</span>
+                <table className="ledger-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f2f2f2' }}>
+                      <th style={{ padding: '5px', border: '1px solid #ccc', textAlign: 'center' }}>No</th>
+                      <th style={{ padding: '5px', border: '1px solid #ccc' }}>Deskripsi</th>
+                      <th style={{ padding: '5px', border: '1px solid #ccc', textAlign: 'right' }}>Jumlah</th>
+                      <th style={{ padding: '5px', border: '1px solid #ccc', textAlign: 'center' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {debts.length > 0 ? (
+                      debts.map((d, idx) => (
+                        <tr key={d.id}>
+                          <td style={{ padding: '5px', border: '1px solid #ccc', textAlign: 'center' }}>{idx + 1}</td>
+                          <td style={{ padding: '5px', border: '1px solid #ccc' }}>{d.title || d.name || d.description}</td>
+                          <td style={{ padding: '5px', border: '1px solid #ccc', textAlign: 'right' }}>Rp {d.amount.toLocaleString('id-ID')}</td>
+                          <td style={{ padding: '5px', border: '1px solid #ccc', textAlign: 'center', fontWeight: 'bold', color: d.paid ? '#00e676' : '#ff1744' }}>
+                            {d.paid ? 'Lunas' : 'Belum'}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="4" style={{ textAlign: 'center', padding: '5px', color: '#888' }}>Bebas hutang!</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. TASKS REPORT SECTION */}
+        <div className="tasks-section" style={{ pageBreakInside: 'avoid', marginBottom: '1.5rem' }}>
+          <div className="section-title-badge" style={{ background: '#f5f5f5', border: '1px solid #ccc', padding: '10px 15px', borderRadius: '6px', marginBottom: '1rem', display: 'inline-block', fontWeight: 'bold' }}>
+            📋 LAPORAN TUGAS & PRODUCTIVITY
+          </div>
+
+          <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '12px', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div style={{ fontSize: '1.8rem', fontWeight: 'bold' }}>{printCompletionRate}%</div>
+            <div>
+              <strong style={{ fontSize: '0.85rem' }}>Rasio Penyelesaian Tugas</strong>
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: '#666' }}>
+                Berhasil menyelesaikan {printCompletedTasks.length} dari {tasks.length} total agenda kegiatan.
+              </p>
+            </div>
+          </div>
+
+          <table className="ledger-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+            <thead>
+              <tr style={{ background: '#f2f2f2' }}>
+                <th style={{ padding: '6px', border: '1px solid #ccc', width: '40px', textAlign: 'center' }}>No</th>
+                <th style={{ padding: '6px', border: '1px solid #ccc' }}>Nama Tugas / Agenda</th>
+                <th style={{ padding: '6px', border: '1px solid #ccc', width: '80px', textAlign: 'center' }}>Prioritas</th>
+                <th style={{ padding: '6px', border: '1px solid #ccc', width: '100px', textAlign: 'center' }}>Kategori</th>
+                <th style={{ padding: '6px', border: '1px solid #ccc', width: '120px', textAlign: 'center' }}>Waktu</th>
+                <th style={{ padding: '6px', border: '1px solid #ccc', width: '85px', textAlign: 'center' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.length > 0 ? (
+                tasks.map((t, idx) => (
+                  <tr key={t.id || idx}>
+                    <td style={{ padding: '6px', border: '1px solid #ccc', textAlign: 'center' }}>{idx + 1}</td>
+                    <td style={{ padding: '6px', border: '1px solid #ccc', textDecoration: t.status === 'completed' ? 'line-through' : 'none', opacity: t.status === 'completed' ? 0.7 : 1 }}>{t.text}</td>
+                    <td style={{ padding: '6px', border: '1px solid #ccc', textAlign: 'center', fontWeight: 'bold', color: t.priority === 'high' ? '#ff1744' : t.priority === 'medium' ? '#ff9800' : '#00e5ff' }}>
+                      {t.priority?.toUpperCase()}
+                    </td>
+                    <td style={{ padding: '6px', border: '1px solid #ccc', textAlign: 'center' }}><span className="category-tag">{t.tag}</span></td>
+                    <td style={{ padding: '6px', border: '1px solid #ccc', textAlign: 'center' }}>{t.date} {t.time ? `(${t.time})` : ''}</td>
+                    <td style={{ padding: '6px', border: '1px solid #ccc', textAlign: 'center', fontWeight: 'bold', color: t.status === 'completed' ? '#00e676' : '#ff9800' }}>
+                      {t.status === 'completed' ? 'SELESAI' : 'PENDING'}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" style={{ textAlign: 'center', padding: '15px' }}>Tidak ada tugas tercatat.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* 3. AI CONCLUSION REPORT SECTION */}
+        <div className="ai-summary-section" style={{ pageBreakInside: 'avoid', marginBottom: '1.5rem' }}>
+          <div className="section-title-badge" style={{ background: '#f5f5f5', border: '1px solid #ccc', padding: '10px 15px', borderRadius: '6px', marginBottom: '1rem', display: 'inline-block', fontWeight: 'bold' }}>
+            🤖 ANALISIS KESIMPULAN & EVALUASI AI
+          </div>
+          {aiSummary ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <p style={{ fontSize: '0.8rem', lineHeight: '1.45', background: '#fcfcfc', border: '1px solid #eee', padding: '12px', borderRadius: '8px', margin: 0 }}>
+                {aiSummary.conclusion}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div style={{ border: '1px solid #ddd', padding: '10px', borderRadius: '8px' }}>
+                  <strong style={{ fontSize: '0.75rem', color: '#00e676', display: 'block', marginBottom: '4px' }}>💪 Kekuatan Perilaku:</strong>
+                  <ul style={{ margin: 0, paddingLeft: '15px', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {aiSummary.strengths?.map((s, idx) => <li key={idx}>{s}</li>)}
+                  </ul>
+                </div>
+                <div style={{ border: '1px solid #ddd', padding: '10px', borderRadius: '8px' }}>
+                  <strong style={{ fontSize: '0.75rem', color: '#ff9800', display: 'block', marginBottom: '4px' }}>⚠️ Perlu Ditingkatkan:</strong>
+                  <ul style={{ margin: 0, paddingLeft: '15px', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {aiSummary.improvements?.map((imp, idx) => <li key={idx}>{imp}</li>)}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p style={{ fontSize: '0.75rem', color: '#888', margin: 0 }}>Analisis AI belum dimuat.</p>
+          )}
+        </div>
+
+        {/* SIGNATURE AREA */}
+        <div style={{ marginTop: '3.5rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', pageBreakInside: 'avoid' }}>
+          <div>
+            <p style={{ marginBottom: '2.5rem' }}>Pengguna LifeOS,</p>
+            <div style={{ width: '120px', borderBottom: '1px solid #333' }} />
+            <p style={{ marginTop: '4px', fontSize: '0.7rem', color: '#666' }}>Tanda Tangan & Nama Terang</p>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ marginBottom: '2.5rem' }}>AI Executive Advisor,</p>
+            <strong style={{ display: 'block' }}>LifeOS Smart System</strong>
+            <p style={{ marginTop: '4px', fontSize: '0.7rem', color: '#666' }}>Analisis Otomatis Terverifikasi</p>
+          </div>
+        </div>
+
+      </div>
 
     </div>
   );

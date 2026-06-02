@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Sparkles, TrendingUp, X, Trash2, Edit2, Plus, PiggyBank, Calendar, DollarSign, Check, CreditCard } from 'lucide-react';
-import { scanReceiptWithGemini, getAIFinanceAdvice } from '../utils/aiEngine';
+import { scanReceiptWithGemini, getAIFinanceAdvice, scanReceiptForSplitBill } from '../utils/aiEngine';
 
 export default function FinanceManager({ 
   filteredFinances, 
@@ -31,10 +31,161 @@ export default function FinanceManager({
   finances,
   onAddAsset,
   onUpdateAssetBalance,
-  onDeleteAsset
+  onDeleteAsset,
+  onPrintFullReport
 }) {
-  const [activeTab, setActiveTab] = useState('summary'); // 'summary', 'wallets', 'savings_debts', 'monthly_cal', 'ai_advice'
+  const [activeTab, setActiveTab] = useState('summary'); // 'summary', 'wallets', 'savings_debts', 'monthly_cal', 'ai_advice', 'split_bill'
   const [showTxnSheet, setShowTxnSheet] = useState(false);
+
+  // Split Bill States
+  const [splitMerchant, setSplitMerchant] = useState('Restoran Sunda');
+  const [splitItems, setSplitItems] = useState([
+    { id: 0, name: "Nasi Liwet", price: 15000, quantity: 2, assignedTo: ['Saya'] },
+    { id: 1, name: "Ayam Goreng", price: 22000, quantity: 2, assignedTo: ['Saya'] },
+    { id: 2, name: "Es Teh Manis", price: 6000, quantity: 2, assignedTo: ['Saya'] },
+    { id: 3, name: "Sambal Dadak", price: 5000, quantity: 1, assignedTo: ['Saya'] }
+  ]);
+  const [splitTaxAndService, setSplitTaxAndService] = useState(9000);
+  const [splitFriends, setSplitFriends] = useState(['Saya', 'Budi', 'Siti']);
+  const [friendInput, setFriendInput] = useState('');
+  const [receiptImage, setReceiptImage] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isScanningSplit, setIsScanningSplit] = useState(false);
+  
+  // Manual Item Inputs
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemPrice, setNewItemPrice] = useState('');
+  const [newItemQuantity, setNewItemQuantity] = useState('1');
+
+  const handleSplitBillFileChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      const imageUrl = URL.createObjectURL(file);
+      setReceiptImage(imageUrl);
+    }
+  };
+
+  const handleScanWithAI = async () => {
+    if (!selectedFile) return;
+    setIsScanningSplit(true);
+    
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      try {
+        const base64Data = reader.result.split(',')[1];
+        const mimeType = selectedFile.type || 'image/jpeg';
+        const result = await scanReceiptForSplitBill(base64Data, mimeType);
+        
+        if (result) {
+          setSplitMerchant(result.merchant || 'Merchant');
+          setSplitTaxAndService(parseInt(result.taxAndService) || 0);
+          
+          const mappedItems = (result.items || []).map((item, idx) => ({
+            id: Date.now() + idx + Math.random(),
+            name: item.name,
+            price: parseInt(item.price) || 0,
+            quantity: parseInt(item.quantity) || 1,
+            assignedTo: ['Saya']
+          }));
+          setSplitItems(mappedItems);
+        }
+      } catch (error) {
+        console.error("AI scanning failed", error);
+        alert("Gagal memindai struk dengan AI. Silakan masukkan secara manual.");
+      } finally {
+        setIsScanningSplit(false);
+      }
+    };
+    reader.readAsDataURL(selectedFile);
+  };
+
+  const handleAddManualItem = () => {
+    if (!newItemName.trim() || !newItemPrice) return;
+    const newItem = {
+      id: Date.now() + Math.random(),
+      name: newItemName.trim(),
+      price: parseInt(newItemPrice) || 0,
+      quantity: parseInt(newItemQuantity) || 1,
+      assignedTo: ['Saya']
+    };
+    setSplitItems([...splitItems, newItem]);
+    setNewItemName('');
+    setNewItemPrice('');
+    setNewItemQuantity('1');
+  };
+
+  const handleRemoveItem = (itemId) => {
+    setSplitItems(splitItems.filter(item => item.id !== itemId));
+  };
+
+  const getFriendTotals = () => {
+    const friendTotals = {};
+    splitFriends.forEach(f => {
+      friendTotals[f] = 0;
+    });
+
+    let itemsSubtotal = 0;
+    splitItems.forEach(item => {
+      const itemCost = item.price * item.quantity;
+      itemsSubtotal += itemCost;
+      
+      const numAssigned = item.assignedTo.length;
+      if (numAssigned > 0) {
+        const share = itemCost / numAssigned;
+        item.assignedTo.forEach(friend => {
+          if (friendTotals[friend] !== undefined) {
+            friendTotals[friend] += share;
+          }
+        });
+      }
+    });
+
+    splitFriends.forEach(f => {
+      if (itemsSubtotal > 0) {
+        const proportion = friendTotals[f] / itemsSubtotal;
+        const taxShare = proportion * splitTaxAndService;
+        friendTotals[f] = Math.round(friendTotals[f] + taxShare);
+      }
+    });
+
+    return friendTotals;
+  };
+
+  const handleSaveSplitBill = () => {
+    const totals = getFriendTotals();
+    
+    // Add self portion
+    const selfShare = totals['Saya'] || 0;
+    if (selfShare > 0) {
+      onAddDirectTransaction(
+        `Patungan: ${splitMerchant} (Bagian Saya)`,
+        selfShare,
+        'expense',
+        'Caffeine/Food',
+        assets && assets.length > 0 ? assets[0].id : 'cash'
+      );
+    }
+
+    // Add others' portions as debts
+    const updatedDebts = [...debts];
+    Object.entries(totals).forEach(([friend, amount]) => {
+      if (friend !== 'Saya' && amount > 0) {
+        const newDebt = {
+          id: 'piutang_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          title: `Piutang ${friend}: Patungan ${splitMerchant}`,
+          amount: amount,
+          dueDate: '',
+          paid: false
+        };
+        updatedDebts.push(newDebt);
+      }
+    });
+
+    setDebts(updatedDebts);
+    alert("Sukses menyimpan patungan! Bagian Anda disimpan di Pengeluaran, piutang teman disimpan di Tanggungan.");
+    setActiveTab('summary');
+  };
 
   // Asset Form States
   const [showAddAssetForm, setShowAddAssetForm] = useState(false);
@@ -353,17 +504,42 @@ export default function FinanceManager({
         </div>
       )}
 
-      <div className="subpanel-header">
+      <div className="subpanel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '8px' }}>
         <span className="subpanel-title">💵 Keuangan & Budget</span>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button
+            onClick={() => {
+              document.body.classList.remove('print-mode-full', 'print-mode-financial', 'print-mode-tasks');
+              document.body.classList.add('print-mode-financial');
+              setTimeout(() => {
+                window.print();
+              }, 150);
+            }}
+            className="premium-print-btn"
+          >
+            🖨️ Cetak Buku Besar
+          </button>
+          <button
+            onClick={() => {
+              if (typeof onPrintFullReport === 'function') {
+                onPrintFullReport();
+              }
+            }}
+            className="premium-print-btn active-glow-volt"
+          >
+            📄 Cetak Laporan Lengkap
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--bg-pill)', padding: '4px', borderRadius: '14px', marginBottom: '0.75rem' }}>
-        <button onClick={() => setActiveTab('summary')} style={{ flex: 1, padding: '8px 2px', fontSize: '0.63rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'summary' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'summary' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Log & Tren</button>
-        <button onClick={() => setActiveTab('wallets')} style={{ flex: 1, padding: '8px 2px', fontSize: '0.63rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'wallets' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'wallets' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Dompet Saya</button>
-        <button onClick={() => setActiveTab('savings_debts')} style={{ flex: 1, padding: '8px 2px', fontSize: '0.63rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'savings_debts' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'savings_debts' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Tabungan/Hutang</button>
-        <button onClick={() => setActiveTab('monthly_cal')} style={{ flex: 1, padding: '8px 2px', fontSize: '0.63rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'monthly_cal' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'monthly_cal' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Kalender</button>
-        <button onClick={() => setActiveTab('ai_advice')} style={{ flex: 1, padding: '8px 2px', fontSize: '0.63rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'ai_advice' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'ai_advice' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}><Sparkles size={10} color="var(--accent-purple)" /> AI Advisor</button>
+      <div style={{ display: 'flex', gap: '0.2rem', background: 'var(--bg-pill)', padding: '4px', borderRadius: '14px', marginBottom: '0.75rem', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+        <button onClick={() => setActiveTab('summary')} style={{ flex: 1, padding: '8px 4px', fontSize: '0.62rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'summary' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'summary' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Log & Tren</button>
+        <button onClick={() => setActiveTab('wallets')} style={{ flex: 1, padding: '8px 4px', fontSize: '0.62rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'wallets' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'wallets' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Dompet</button>
+        <button onClick={() => setActiveTab('savings_debts')} style={{ flex: 1, padding: '8px 4px', fontSize: '0.62rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'savings_debts' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'savings_debts' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Tabungan/Hutang</button>
+        <button onClick={() => setActiveTab('split_bill')} style={{ flex: 1, padding: '8px 4px', fontSize: '0.62rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'split_bill' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'split_bill' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>🔗 Patungan</button>
+        <button onClick={() => setActiveTab('monthly_cal')} style={{ flex: 1, padding: '8px 4px', fontSize: '0.62rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'monthly_cal' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'monthly_cal' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>Kalender</button>
+        <button onClick={() => setActiveTab('ai_advice')} style={{ flex: 1, padding: '8px 4px', fontSize: '0.62rem', fontWeight: 'bold', border: 'none', borderRadius: '10px', background: activeTab === 'ai_advice' ? 'var(--card-bg-solid)' : 'none', color: activeTab === 'ai_advice' ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}><Sparkles size={10} color="var(--accent-purple)" /> AI Advisor</button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', flex: 1, paddingBottom: '20px' }}>
@@ -1025,6 +1201,379 @@ export default function FinanceManager({
                 ))}
               </div>
             </div>
+
+          </div>
+        )}
+
+        {activeTab === 'split_bill' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            
+            {/* Foto Acuan Struk */}
+            <div className="glass-panel volt-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', position: 'relative' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                📸 ACUAN STRUK FOTO (OPSIONAL)
+              </span>
+              <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>
+                Upload foto nota agar tampil di layar sebagai bantuan panduan visual saat Anda memasukkan rincian item di bawah.
+              </p>
+
+              {receiptImage ? (
+                <div style={{ position: 'relative', borderRadius: '14px', overflow: 'hidden', border: '1px solid var(--card-border)', background: 'var(--bg-pill)', padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <img 
+                    src={receiptImage} 
+                    alt="Receipt Reference" 
+                    style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: '8px' }} 
+                  />
+                  <div style={{ display: 'flex', gap: '8px', width: '100%', justifyContent: 'center' }}>
+                    <button 
+                      onClick={() => {
+                        setReceiptImage(null);
+                        setSelectedFile(null);
+                      }}
+                      style={{ 
+                        flex: 1,
+                        background: 'var(--accent-coral)', 
+                        color: '#fff', 
+                        border: 'none', 
+                        padding: '6px 12px', 
+                        borderRadius: '8px', 
+                        fontSize: '0.7rem', 
+                        cursor: 'pointer',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      Hapus Acuan
+                    </button>
+                    <button 
+                      onClick={handleScanWithAI}
+                      disabled={isScanningSplit}
+                      className="premium-print-btn active-glow-volt"
+                      style={{ 
+                        flex: 2,
+                        padding: '6px 12px', 
+                        borderRadius: '8px', 
+                        fontSize: '0.7rem', 
+                        justifyContent: 'center'
+                      }}
+                    >
+                      {isScanningSplit ? 'Membaca Nota...' : '⚡ Pindai Otomatis (AI)'}
+                    </button>
+                  </div>
+
+                  {isScanningSplit && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', justifyContent: 'center' }}>
+                      <div className="animate-spin" style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--accent-volt)', borderRadius: '50%' }} />
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Membaca struk patungan dengan Gemini OCR...</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                  <label className="premium-print-btn active-glow-volt" style={{ flex: 1, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <Camera size={14} />
+                    Upload Foto Nota
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleSplitBillFileChange} 
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+
+            {/* Merchant & Pajak Setup */}
+            <div className="glass-panel volt-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>🛍️ INFO MERCHANT & PAJAK</span>
+              
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: '130px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Nama Toko / Resto</label>
+                  <input 
+                    type="text" 
+                    value={splitMerchant}
+                    onChange={(e) => setSplitMerchant(e.target.value)}
+                    placeholder="Nama Resto..." 
+                    className="text-input" 
+                    style={{ width: '100%', padding: '6px 10px', fontSize: '0.75rem', background: 'var(--bg-pill)', border: '1px solid var(--card-border)', borderRadius: '10px', color: 'var(--text-primary)' }}
+                  />
+                </div>
+
+                <div style={{ flex: 1, minWidth: '130px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Pajak & Biaya Servis (Rp)</label>
+                  <input 
+                    type="number" 
+                    value={splitTaxAndService || ''}
+                    onChange={(e) => setSplitTaxAndService(parseInt(e.target.value) || 0)}
+                    placeholder="Pajak..." 
+                    className="text-input" 
+                    style={{ width: '100%', padding: '6px 10px', fontSize: '0.75rem', background: 'var(--bg-pill)', border: '1px solid var(--card-border)', borderRadius: '10px', color: 'var(--text-primary)' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Tambah Menu Manual */}
+            <div className="glass-panel volt-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>➕ TAMBAH ITEM MENU</span>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <input 
+                  type="text" 
+                  placeholder="Nama Item (misal: Nasi Liwet)" 
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: '0.75rem', background: 'var(--bg-pill)', border: '1px solid var(--card-border)', borderRadius: '10px', color: 'var(--text-primary)' }}
+                />
+                
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input 
+                    type="number" 
+                    placeholder="Harga Satuan (Rp)" 
+                    value={newItemPrice}
+                    onChange={(e) => setNewItemPrice(e.target.value)}
+                    style={{ flex: 2, padding: '8px 12px', fontSize: '0.75rem', background: 'var(--bg-pill)', border: '1px solid var(--card-border)', borderRadius: '10px', color: 'var(--text-primary)' }}
+                  />
+                  <input 
+                    type="number" 
+                    placeholder="Qty" 
+                    value={newItemQuantity}
+                    onChange={(e) => setNewItemQuantity(e.target.value)}
+                    style={{ flex: 1, padding: '8px 12px', fontSize: '0.75rem', background: 'var(--bg-pill)', border: '1px solid var(--card-border)', borderRadius: '10px', color: 'var(--text-primary)', textAlign: 'center' }}
+                  />
+                </div>
+
+                <button 
+                  onClick={handleAddManualItem}
+                  disabled={!newItemName.trim() || !newItemPrice}
+                  className="premium-print-btn active-glow-volt"
+                  style={{ width: '100%', padding: '10px', fontSize: '0.75rem', borderRadius: '10px', justifyContent: 'center' }}
+                >
+                  Tambahkan Item
+                </button>
+              </div>
+            </div>
+
+            {/* Daftar Teman */}
+            <div className="glass-panel volt-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>👥 Teman Patungan ({splitFriends.length})</span>
+              
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <input 
+                  type="text" 
+                  placeholder="Masukkan nama teman..." 
+                  className="text-input" 
+                  value={friendInput}
+                  onChange={(e) => setFriendInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && friendInput.trim()) {
+                      if (!splitFriends.includes(friendInput.trim())) {
+                        setSplitFriends([...splitFriends, friendInput.trim()]);
+                      }
+                      setFriendInput('');
+                    }
+                  }}
+                  style={{ flex: 1, padding: '8px 12px', fontSize: '0.75rem', background: 'var(--bg-pill)', border: '1px solid var(--card-border)', borderRadius: '10px', color: 'var(--text-primary)' }}
+                />
+                <button 
+                  onClick={() => {
+                    if (friendInput.trim()) {
+                      if (!splitFriends.includes(friendInput.trim())) {
+                        setSplitFriends([...splitFriends, friendInput.trim()]);
+                      }
+                      setFriendInput('');
+                    }
+                  }}
+                  className="premium-print-btn active-glow-volt"
+                  style={{ padding: '8px 16px', borderRadius: '10px' }}
+                >
+                  Tambah
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {splitFriends.map(f => (
+                  <div 
+                    key={f} 
+                    style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '6px', 
+                      background: f === 'Saya' ? 'rgba(34, 211, 238, 0.12)' : 'var(--bg-pill)', 
+                      border: f === 'Saya' ? '1px solid var(--accent-cyan)' : '1px solid var(--card-border)', 
+                      borderRadius: '20px', 
+                      padding: '4px 12px', 
+                      fontSize: '0.7rem',
+                      color: 'var(--text-primary)'
+                    }}
+                  >
+                    <span>{f === 'Saya' ? '😎 Saya' : f}</span>
+                    {f !== 'Saya' && (
+                      <button 
+                        onClick={() => {
+                          setSplitFriends(splitFriends.filter(item => item !== f));
+                          setSplitItems(splitItems.map(item => ({
+                            ...item,
+                            assignedTo: item.assignedTo.filter(name => name !== f)
+                          })));
+                        }}
+                        style={{ background: 'none', border: 'none', color: 'var(--accent-coral)', cursor: 'pointer', fontSize: '0.65rem', padding: 0, fontWeight: 'bold' }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Alokasi Menu/Barang */}
+            <div className="glass-panel volt-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>🍽️ Alokasi Item Menu ({splitMerchant})</span>
+                {splitItems.length > 0 && (
+                  <button 
+                    onClick={() => {
+                      setSplitItems(splitItems.map(item => ({
+                        ...item,
+                        assignedTo: [...splitFriends]
+                      })));
+                    }}
+                    style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', fontSize: '0.68rem', cursor: 'pointer', textDecoration: 'underline', fontWeight: '600' }}
+                  >
+                    Bagi Rata Semua Item
+                  </button>
+                )}
+              </div>
+
+              {splitItems.length === 0 ? (
+                <div style={{ padding: '20px', textDecoration: 'none', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                  Belum ada item belanja. Silakan tambahkan nama item, harga, dan kuantitas di atas.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {splitItems.map(item => (
+                    <div 
+                      key={item.id} 
+                      style={{ 
+                        background: 'var(--bg-pill)', 
+                        border: '1px solid var(--card-border)', 
+                        borderRadius: '14px', 
+                        padding: '12px', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '8px',
+                        position: 'relative'
+                      }}
+                    >
+                      <button 
+                        onClick={() => handleRemoveItem(item.id)}
+                        style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: 'var(--accent-coral)', cursor: 'pointer' }}
+                        title="Hapus Item"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', paddingRight: '20px' }}>
+                        <strong style={{ color: 'var(--text-primary)' }}>{item.name} <span style={{ color: 'var(--text-secondary)', fontWeight: 'normal' }}>x{item.quantity}</span></strong>
+                        <strong style={{ color: 'var(--accent-cyan)' }}>Rp {(item.price * item.quantity).toLocaleString('id-ID')}</strong>
+                      </div>
+
+                      {/* Friend selectors for this item */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
+                        {splitFriends.map(friend => {
+                          const isAssigned = item.assignedTo.includes(friend);
+                          return (
+                            <button
+                              key={friend}
+                              onClick={() => {
+                                if (isAssigned) {
+                                  if (item.assignedTo.length > 1) {
+                                    setSplitItems(splitItems.map(si => si.id === item.id ? {
+                                      ...si,
+                                      assignedTo: si.assignedTo.filter(name => name !== friend)
+                                    } : si));
+                                  } else {
+                                    alert("Minimal harus ada 1 orang penanggung jawab!");
+                                  }
+                                } else {
+                                  setSplitItems(splitItems.map(si => si.id === item.id ? {
+                                    ...si,
+                                    assignedTo: [...si.assignedTo, friend]
+                                  } : si));
+                                }
+                              }}
+                              style={{
+                                background: isAssigned ? 'rgba(34, 211, 238, 0.15)' : 'rgba(0,0,0,0.03)',
+                                border: isAssigned ? '1px solid var(--accent-cyan)' : '1px solid var(--card-border)',
+                                borderRadius: '14px',
+                                padding: '4px 10px',
+                                fontSize: '0.65rem',
+                                color: isAssigned ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                fontWeight: isAssigned ? 'bold' : 'normal',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s'
+                              }}
+                            >
+                              {friend === 'Saya' ? 'Saya' : friend}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Ringkasan Tagihan */}
+            {splitItems.length > 0 && (
+              <div className="glass-panel volt-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>📊 Rekap Rincian Tagihan</span>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.75rem' }}>
+                  {Object.entries(getFriendTotals()).map(([friend, amt]) => (
+                    <div 
+                      key={friend} 
+                      style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        background: 'var(--bg-pill)', 
+                        padding: '8px 12px', 
+                        borderRadius: '10px', 
+                        border: '1px solid var(--card-border)' 
+                      }}
+                    >
+                      <span style={{ color: friend === 'Saya' ? 'var(--accent-cyan)' : 'var(--text-primary)' }}>
+                        {friend === 'Saya' ? '😎 Bagian Saya' : `👤 Tagihan ${friend}`}
+                      </span>
+                      <strong style={{ color: friend === 'Saya' ? 'var(--accent-cyan)' : 'var(--text-primary)' }}>
+                        Rp {amt.toLocaleString('id-ID')}
+                      </strong>
+                    </div>
+                  ))}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--card-border)', paddingTop: '8px', fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    <span>Pajak & Servis</span>
+                    <span style={{ color: 'var(--text-primary)' }}>Rp {splitTaxAndService.toLocaleString('id-ID')}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-primary)', borderTop: '1px solid var(--card-border)', paddingTop: '6px' }}>
+                    <span>Total Nota</span>
+                    <span style={{ color: 'var(--accent-cyan)' }}>Rp {(splitItems.reduce((sum, item) => sum + (item.price * item.quantity), 0) + splitTaxAndService).toLocaleString('id-ID')}</span>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={handleSaveSplitBill}
+                  className="premium-print-btn active-glow-volt" 
+                  style={{ width: '100%', padding: '12px', fontSize: '0.78rem', justifyContent: 'center', marginTop: '6px', borderRadius: '12px' }}
+                >
+                  💾 Simpan Patungan & Simpan Piutang
+                </button>
+              </div>
+            )}
 
           </div>
         )}

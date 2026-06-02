@@ -1353,3 +1353,183 @@ span, p, input, select {
 .ringing-bell-anim {
   animation: ringing 1.5s ease-in-out infinite;
 }
+
+/* Print Media Styles for LifeOS Laporan */
+.print-only {
+  display: none;
+}
+
+@media print {
+  /* Hide the entire app viewport/phone UI wrappers */
+  .phone-screen,
+  .no-print,
+  .floating-capsule-navbar,
+  .ai-advisor-fab,
+  .chatbot-drawer,
+  .app-header,
+  .capsule-nav,
+  nav,
+  button,
+  .subpanel-header,
+  .subpanel-overlay {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+  }
+
+  /* Reset layout constraints for proper page sizing */
+  #root, .app-viewport {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: visible !important;
+  }
+
+  .printable-reports-wrapper {
+    display: block !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    overflow: visible !important;
+  }
+
+  .glass-panel.volt-card {
+    background: #ffffff !important;
+    border: 1px solid #dddddd !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    margin-bottom: 20px;
+    padding: 15px !important;
+    border-radius: 8px !important;
+  }
+
+  /* Adjust text contrast for readability on white paper */
+  span, p, strong, div, h1, h2, h3, li, ul, strong {
+    color: #000000 !important;
+    text-shadow: none !important;
+  }
+
+  .section-title-badge {
+    background: #f0f0f0 !important;
+    color: #000000 !important;
+    border: 1px solid #cccccc !important;
+    padding: 4px 8px !important;
+    border-radius: 4px !important;
+    display: inline-block !important;
+    font-weight: bold !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* Ensure scrollbars are hidden */
+  ::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  /* Conditional printing modes */
+  body.print-mode-financial .tasks-section,
+  body.print-mode-financial .ai-summary-section {
+    display: none !important;
+  }
+
+  body.print-mode-tasks .financial-section,
+  body.print-mode-tasks .ai-summary-section {
+    display: none !important;
+  }
+
+  body.print-mode-full .financial-section,
+  body.print-mode-full .tasks-section,
+  body.print-mode-full .ai-summary-section {
+    display: block !important;
+  }
+
+  /* Ledger Table Print Adjustments */
+  .ledger-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    border: 1px solid #cccccc !important;
+  }
+  .ledger-table th {
+    background-color: #f2f2f2 !important;
+    color: #000000 !important;
+    font-weight: bold !important;
+    border: 1px solid #cccccc !important;
+  }
+  .ledger-table td {
+    color: #000000 !important;
+    border: 1px solid #cccccc !important;
+  }
+  .category-tag {
+    background: #e9e9e9 !important;
+    color: #333333 !important;
+    border: 1px solid #cccccc !important;
+  }
+}
+
+/* Ledger styling for app screen view */
+.ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.ledger-table th {
+  font-weight: bold;
+}
+.category-tag {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Premium print action buttons for glass panels */
+.premium-print-btn {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.premium-print-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1.5px);
+}
+
+.premium-print-btn.active-glow-volt {
+  border-color: var(--accent-volt);
+  box-shadow: var(--accent-volt-glow);
+}
+
+.premium-print-btn.active-glow-purple {
+  border-color: var(--accent-purple);
+  box-shadow: var(--accent-purple-glow);
+}
+
+
+

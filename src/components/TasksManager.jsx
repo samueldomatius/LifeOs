@@ -112,8 +112,20 @@ export default function TasksManager({
 
   return (
     <div className="subpanel-overlay">
-      <div className="subpanel-header">
+      <div className="subpanel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
         <span className="subpanel-title">⚡ Tasks & Focus Blocks</span>
+        <button
+          onClick={() => {
+            document.body.classList.remove('print-mode-full', 'print-mode-financial', 'print-mode-tasks');
+            document.body.classList.add('print-mode-tasks');
+            setTimeout(() => {
+              window.print();
+            }, 150);
+          }}
+          className="premium-print-btn active-glow-purple"
+        >
+          🖨️ Cetak PDF Tugas
+        </button>
       </div>
 
       {/* Sleek Tab Navigation */}
