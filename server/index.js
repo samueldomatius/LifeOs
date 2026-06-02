@@ -271,7 +271,8 @@ async function checkAndSendPushNotifications() {
                 android: {
                   priority: 'high',
                   notification: {
-                    sound: 'default'
+                    sound: 'default',
+                    channelId: 'default'
                   }
                 },
                 apns: {
@@ -304,7 +305,8 @@ async function checkAndSendPushNotifications() {
                 android: {
                   priority: 'high',
                   notification: {
-                    sound: 'default'
+                    sound: 'default',
+                    channelId: 'default'
                   }
                 },
                 apns: {

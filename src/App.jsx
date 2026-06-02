@@ -490,6 +490,22 @@ export default function App() {
             permStatus = await PushNotifications.requestPermissions();
           }
           if (permStatus.receive === 'granted') {
+            if (Capacitor.getPlatform() === 'android') {
+              try {
+                await PushNotifications.createChannel({
+                  id: 'default',
+                  name: 'LifeOS Reminders',
+                  description: 'Tugas & Pengingat LifeOS',
+                  importance: 5, 
+                  visibility: 1, 
+                  sound: 'default',
+                  vibration: true
+                });
+                console.log("Notif channel created successfully");
+              } catch (channelErr) {
+                console.warn("Failed to create notif channel:", channelErr);
+              }
+            }
             await PushNotifications.register();
           }
         } catch (err) {
