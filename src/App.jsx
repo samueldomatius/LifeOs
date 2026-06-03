@@ -137,6 +137,8 @@ export default function App() {
     }
   });
 
+  const [justLoggedIn, setJustLoggedIn] = useState(false);
+
   // --- State Stores ---
   const [theme, setTheme] = useState(() => {
     try {
@@ -594,6 +596,71 @@ export default function App() {
       return Math.abs(hash) % 1000000;
     };
 
+    const scheduleAllFutureTasks = async (tasksList) => {
+      if (!Capacitor.isNativePlatform()) return;
+      try {
+        // Cancel all previously scheduled notifications by this app to prevent duplicates
+        const pending = await LocalNotifications.getPending();
+        if (pending.notifications && pending.notifications.length > 0) {
+          await LocalNotifications.cancel({ notifications: pending.notifications });
+        }
+
+        const nativeNotifs = [];
+        const now = new Date();
+
+        for (const t of tasksList) {
+          if (t.status === 'pending' && t.dueDate && t.time) {
+            const [taskHr, taskMin] = t.time.split(':').map(Number);
+            const [year, month, day] = t.dueDate.split('-').map(Number);
+            const taskTime = new Date(year, month - 1, day, taskHr, taskMin, 0);
+
+            // 1. H-0 exact reminder
+            if (taskTime > now) {
+              nativeNotifs.push({
+                id: getNumericId(`now_${t.id}`),
+                title: "🚨 Waktu Tugas Mulai!",
+                body: `Saatnya mengerjakan: "${t.text}" (Jadwal: ${t.time})`,
+                channelId: 'lifeos_reminders',
+                schedule: { at: taskTime },
+                sound: 'default',
+                smallIcon: 'ic_stat_icon_config_sample',
+                iconColor: '#7C3AED'
+              });
+            }
+
+            // 2. H-5 reminder
+            const fiveMinsBefore = new Date(taskTime.getTime() - 5 * 60 * 1000);
+            if (fiveMinsBefore > now) {
+              nativeNotifs.push({
+                id: getNumericId(`h5_${t.id}`),
+                title: "⏰ Tugas Mendatang (H-5 Menit)",
+                body: `Tugas "${t.text}" akan dimulai dalam 5 menit!`,
+                channelId: 'lifeos_reminders',
+                schedule: { at: fiveMinsBefore },
+                sound: 'default',
+                smallIcon: 'ic_stat_icon_config_sample',
+                iconColor: '#7C3AED'
+              });
+            }
+          }
+        }
+
+        if (nativeNotifs.length > 0) {
+          // Sort and schedule the nearest 50 future reminders
+          const sortedNotifs = nativeNotifs
+            .sort((a, b) => a.schedule.at - b.schedule.at)
+            .slice(0, 50);
+
+          await LocalNotifications.schedule({
+            notifications: sortedNotifs
+          });
+          console.log(`Pre-scheduled ${sortedNotifs.length} future native notifications in advance.`);
+        }
+      } catch (e) {
+        console.error("Failed to pre-schedule future tasks:", e);
+      }
+    };
+
     const checkReminders = async () => {
       const now = new Date();
       const currentHrs = now.getHours().toString().padStart(2, '0');
@@ -713,6 +780,7 @@ export default function App() {
 
     // Initial check
     checkReminders();
+    scheduleAllFutureTasks(tasks);
 
     const clockTimer = setInterval(() => {
       const now = new Date();
@@ -1033,6 +1101,7 @@ export default function App() {
         }
       }
       setDbLoading(false);
+      setJustLoggedIn(false);
     };
     initDb();
   }, [userId]);
@@ -2100,13 +2169,13 @@ export default function App() {
     return (
       <div className={`app-viewport theme-transition ${theme}`}>
         <div className="phone-screen theme-transition" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '2rem' }}>
-          <AuthScreen setUserId={setUserId} setUserEmail={setUserEmail} theme={theme} toggleTheme={toggleTheme} />
+          <AuthScreen setUserId={setUserId} setUserEmail={setUserEmail} setJustLoggedIn={setJustLoggedIn} theme={theme} toggleTheme={toggleTheme} />
         </div>
       </div>
     );
   }
 
-  if (dbLoading) {
+  if (dbLoading && justLoggedIn) {
     return (
       <div className={`app-viewport theme-transition ${theme}`}>
         <div className="phone-screen theme-transition" style={{ 

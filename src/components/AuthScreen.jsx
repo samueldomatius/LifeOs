@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Compass, Mail, Lock, User, Eye, EyeOff, Sparkles, Sun, Moon } from 'lucide-react';
 import { API_URL } from '../config';
 
-export default function AuthScreen({ setUserId, setUserEmail, theme, toggleTheme }) {
+export default function AuthScreen({ setUserId, setUserEmail, setJustLoggedIn, theme, toggleTheme }) {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,6 +36,7 @@ export default function AuthScreen({ setUserId, setUserEmail, theme, toggleTheme
       // Success
       localStorage.setItem('lifeos_user_id', data.userId);
       localStorage.setItem('lifeos_user_email', data.email);
+      if (setJustLoggedIn) setJustLoggedIn(true);
       setUserId(data.userId);
       setUserEmail(data.email);
     } catch (err) {
