@@ -625,7 +625,7 @@ export default function App() {
                 channelId: 'lifeos_reminders',
                 schedule: { at: taskTime, allowWhileIdle: true },
                 sound: 'default',
-                smallIcon: 'ic_stat_icon_config_sample',
+                smallIcon: 'ic_launcher',
                 iconColor: '#7C3AED'
               });
             }
@@ -640,7 +640,7 @@ export default function App() {
                 channelId: 'lifeos_reminders',
                 schedule: { at: fiveMinsBefore, allowWhileIdle: true },
                 sound: 'default',
-                smallIcon: 'ic_stat_icon_config_sample',
+                smallIcon: 'ic_launcher',
                 iconColor: '#7C3AED'
               });
             }
@@ -708,7 +708,7 @@ export default function App() {
                   channelId: 'lifeos_reminders',
                   schedule: { at: new Date(Date.now() + 500) },
                   sound: 'default',
-                  smallIcon: 'ic_stat_icon_config_sample',
+                  smallIcon: 'ic_launcher',
                   iconColor: '#7C3AED'
                 });
               } else if ('Notification' in window && Notification.permission === 'granted') {
@@ -744,7 +744,7 @@ export default function App() {
                   channelId: 'lifeos_reminders',
                   schedule: { at: new Date(Date.now() + 500) },
                   sound: 'default',
-                  smallIcon: 'ic_stat_icon_config_sample',
+                  smallIcon: 'ic_launcher',
                   iconColor: '#7C3AED'
                 });
               } else if ('Notification' in window && Notification.permission === 'granted') {
