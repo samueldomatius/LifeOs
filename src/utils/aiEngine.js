@@ -149,7 +149,6 @@ async function tryGeminiKey(key, finalSystemPrompt, userPrompt, jsonSchema, inli
         }
         modelErrors.push(`${modelName}: empty response`);
       } else {
-        const errText = await response.text();
         const status = response.status;
         modelErrors.push(`${modelName}(${status})`);
 
@@ -158,16 +157,16 @@ async function tryGeminiKey(key, finalSystemPrompt, userPrompt, jsonSchema, inli
           console.warn(`⚠️ [Gemini] Rate limited on ${modelName}, trying next model...`);
           continue;
         }
-        // 401/403 = invalid key, blacklist immediately and stop
+        // 401/403 = key invalid or forbidden - blacklist 1 jam (bukan 24 jam, karena mungkin regional temporary)
         if (status === 401 || status === 403) {
-          blacklistKey(key, 24 * 60 * 60 * 1000); // 24 jam untuk invalid key
-          throw new Error(`Key invalid (${status}): blacklisted`);
+          blacklistKey(key, 60 * 60 * 1000); // 1 jam
+          throw new Error(`Key forbidden/invalid (${status}): skip`);
         }
-        // 400 = bad request, skip model
+        // 400 = bad request for this model, try next model
         if (status === 400) continue;
       }
     } catch (e) {
-      if (e.message.includes('blacklisted')) throw e;
+      if (e.message.includes('skip') || e.message.includes('blacklisted')) throw e;
       if (e.name === 'AbortError') {
         modelErrors.push(`${modelName}: timeout`);
         continue;
@@ -185,13 +184,19 @@ async function tryGeminiKey(key, finalSystemPrompt, userPrompt, jsonSchema, inli
 // TRY A SINGLE OPENROUTER KEY across all free models
 // ============================================================
 async function tryOpenRouterKey(key, finalSystemPrompt, userPrompt, jsonSchema, inlineData) {
+  // Model list verified from OpenRouter API - June 2026
   const openRouterModels = [
-    "google/gemini-2.5-flash:free",
-    "deepseek/deepseek-r1:free",
-    "meta-llama/llama-4-scout:free",
-    "meta-llama/llama-3.1-8b-instruct:free",
-    "google/gemini-2.0-flash-exp:free",
-    "google/gemini-flash-1.5:free"
+    "openrouter/owl-alpha",                       // OpenRouter own model - high priority
+    "meta-llama/llama-3.3-70b-instruct:free",     // Meta Llama 3.3 70B - very capable
+    "openai/gpt-oss-20b:free",                    // OpenAI OSS 20B - free tier
+    "openai/gpt-oss-120b:free",                   // OpenAI OSS 120B - most capable free
+    "google/gemma-4-31b-it:free",                 // Google Gemma 4 31B - multimodal
+    "google/gemma-4-26b-a4b-it:free",             // Google Gemma 4 26B - multimodal MoE
+    "nousresearch/hermes-3-llama-3.1-405b:free",  // Nous Hermes 405B - very powerful
+    "deepseek/deepseek-r1:free",                  // DeepSeek R1 - great reasoning
+    "meta-llama/llama-3.2-3b-instruct:free",      // Llama 3.2 3B - fast & reliable
+    "mistralai/mistral-nemo",                     // Mistral Nemo - free pricing
+    "nvidia/nemotron-3-super-120b-a12b:free"      // NVIDIA Nemotron 120B - powerful
   ];
 
   const url = "https://openrouter.ai/api/v1/chat/completions";
