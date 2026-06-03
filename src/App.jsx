@@ -22,6 +22,7 @@ import {
   Leaf,
   Check
 } from 'lucide-react';
+import appLogo from '../assets/icon.png';
 
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -2183,14 +2184,15 @@ export default function App() {
               width: '80px', 
               height: '80px', 
               background: 'radial-gradient(circle, var(--accent-volt, #a3e635) 0%, rgba(163,230,53,0.05) 75%)', 
-              borderRadius: '50%',
+              borderRadius: '24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               boxShadow: '0 0 25px rgba(163,230,53,0.25)',
-              marginBottom: '0.5rem'
+              marginBottom: '0.5rem',
+              overflow: 'hidden'
             }}>
-              <span style={{ fontSize: '2rem', filter: 'drop-shadow(0 0 10px rgba(163,230,53,0.6))' }}>🌌</span>
+              <img src={appLogo} alt="LifeOS Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
             
             <div>
