@@ -38,6 +38,7 @@ import GrowthGarden from './components/GrowthGarden';
 import AuthScreen from './components/AuthScreen';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { startFocusSound, stopFocusSound } from './utils/focusSynth';
 import { isSupabaseConfigured, pullUserData, pushUserData } from './utils/supabaseClient';
 import { checkPrismaReachable, pullUserDataPrisma, pushUserDataPrisma } from './utils/prismaClient';
@@ -483,7 +484,36 @@ export default function App() {
       }
     }
 
-    // Capacitor Native Push Notification setup
+    // Setup Capacitor Local Notifications (works on real HP - shows in system tray)
+    if (Capacitor.isNativePlatform()) {
+      const setupLocalNotifications = async () => {
+        try {
+          // Request permission for local notifications
+          const permResult = await LocalNotifications.requestPermissions();
+          console.log('Local notification permission:', permResult.display);
+
+          // Create notification channel for Android
+          if (Capacitor.getPlatform() === 'android') {
+            await LocalNotifications.createChannel({
+              id: 'lifeos_reminders',
+              name: 'LifeOS Reminders',
+              description: 'Pengingat tugas & jadwal LifeOS',
+              importance: 5,
+              visibility: 1,
+              sound: 'default',
+              vibration: true,
+              lights: true
+            });
+            console.log('Local notification channel created.');
+          }
+        } catch (e) {
+          console.warn('Failed to setup local notifications:', e);
+        }
+      };
+      setupLocalNotifications();
+    }
+
+    // Capacitor Native Push Notification setup (FCM token for backend push)
     if (Capacitor.isNativePlatform()) {
       const registerPush = async () => {
         try {
@@ -551,7 +581,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const checkReminders = () => {
+    const checkReminders = async () => {
       const now = new Date();
       const currentHrs = now.getHours().toString().padStart(2, '0');
       const currentMins = now.getMinutes().toString().padStart(2, '0');
@@ -563,7 +593,7 @@ export default function App() {
       const systemDay = now.getDate().toString().padStart(2, '0');
       const systemTodayStr = `${systemYear}-${systemMonth}-${systemDay}`;
 
-      tasks.forEach(t => {
+      for (const t of tasks) {
         if (t.status === 'pending' && t.dueDate === systemTodayStr && t.time) {
           const [taskHr, taskMin] = t.time.split(':').map(Number);
           const taskTimeToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), taskHr, taskMin, 0);
@@ -592,7 +622,21 @@ export default function App() {
               });
 
               try {
-                if ('Notification' in window && Notification.permission === 'granted') {
+                if (Capacitor.isNativePlatform()) {
+                  // Native: use LocalNotifications - muncul di system tray HP
+                  await LocalNotifications.schedule({
+                    notifications: [{
+                      id: Math.floor(Math.random() * 100000),
+                      title: "⏰ Tugas Mendatang (H-5 Menit)",
+                      body: `Tugas "${t.text}" akan dimulai dalam 5 menit!`,
+                      channelId: 'lifeos_reminders',
+                      schedule: { at: new Date(Date.now() + 500) },
+                      sound: 'default',
+                      smallIcon: 'ic_stat_icon_config_sample',
+                      iconColor: '#7C3AED'
+                    }]
+                  });
+                } else if ('Notification' in window && Notification.permission === 'granted') {
                   new Notification("⏰ Pengingat Tugas LifeOS (H-5)", {
                     body: `Tugas "${t.text}" mulai dalam 5 menit!`,
                     tag: t.id,
@@ -600,7 +644,7 @@ export default function App() {
                   });
                 }
               } catch (e) {
-                console.error("Failed browser notification:", e);
+                console.error("Failed notification:", e);
               }
             }
           }
@@ -627,20 +671,35 @@ export default function App() {
               });
 
               try {
-                if ('Notification' in window && Notification.permission === 'granted') {
-                  new Notification("⏰ Pengingat Tugas LifeOS", {
+                if (Capacitor.isNativePlatform()) {
+                  // Native: use LocalNotifications - muncul di system tray HP
+                  await LocalNotifications.schedule({
+                    notifications: [{
+                      id: Math.floor(Math.random() * 100000),
+                      title: "🚨 Waktu Tugas Mulai!",
+                      body: `Saatnya mengerjakan: "${t.text}" (Jadwal: ${t.time})`,
+                      channelId: 'lifeos_reminders',
+                      schedule: { at: new Date(Date.now() + 500) },
+                      sound: 'default',
+                      smallIcon: 'ic_stat_icon_config_sample',
+                      iconColor: '#7C3AED'
+                    }]
+                  });
+                } else if ('Notification' in window && Notification.permission === 'granted') {
+                  new Notification("🚨 Waktu Tugas Mulai!", {
                     body: `Saatnya mengerjakan: "${t.text}" (Jadwal: ${t.time})`,
                     tag: t.id,
                     requireInteraction: true
                   });
                 }
               } catch (e) {
-                console.error("Failed browser notification:", e);
+                console.error("Failed notification:", e);
               }
+
             }
           }
         }
-      });
+      }
     };
 
     // Initial check

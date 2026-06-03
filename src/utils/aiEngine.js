@@ -163,7 +163,9 @@ ${schemaStr}`;
       // --- Gemini Native GenerateContent Call ---
       const nativeModels = [
         "gemini-2.5-flash",
-        "gemini-2.0-flash-lite"
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash"
       ];
       
       const nativeErrors = [];
@@ -199,7 +201,7 @@ ${schemaStr}`;
           }
 
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout for native
+          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout - gemini-2.5-flash is a thinking model
 
           const response = await fetch(url, {
             method: "POST",
@@ -225,9 +227,11 @@ ${schemaStr}`;
           } else {
             const errText = await response.text();
             nativeErrors.push(`${modelName}(${response.status}: ${errText.substring(0, 90)})`);
-            if (response.status === 429 || response.status === 400 || response.status === 403 || response.status === 401) {
+            // Only break (stop trying models) on auth errors - let 429 & 400 try next model
+            if (response.status === 403 || response.status === 401) {
               break;
             }
+            // For 429 (rate limit) and 400, continue to next model
           }
         } catch (e) {
           nativeErrors.push(`${modelName} error: ${e.message}`);
