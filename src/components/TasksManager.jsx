@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Clock, ExternalLink, Trash2, Edit2, X, Mic, Check, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function TasksManager({ 
   tasks = [],
   filteredTasks, 
   selectedDate, 
+  setSelectedDate,
   taskText, 
   setTaskText, 
   taskPriority, 
@@ -36,6 +37,7 @@ export default function TasksManager({
   dailySummary,
   onPrintReport
 }) {
+  const dateInputRef = useRef(null);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editTaskText, setEditTaskText] = useState('');
   const [editTaskPriority, setEditTaskPriority] = useState('medium');
@@ -187,9 +189,57 @@ export default function TasksManager({
             borderRadius: '16px', 
             fontSize: '0.8rem' 
           }}>
-            <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-              📅 {formatDateHeader(selectedDate)}
-            </span>
+            <div 
+              onClick={() => {
+                if (dateInputRef.current) {
+                  try {
+                    dateInputRef.current.showPicker();
+                  } catch (err) {
+                    dateInputRef.current.click();
+                  }
+                }
+              }}
+              style={{ 
+                fontWeight: 700, 
+                color: 'var(--text-primary)', 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '4px',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid var(--card-border)',
+                transition: 'background 0.2s',
+                userSelect: 'none',
+                position: 'relative'
+              }}
+              title="Klik untuk memilih tanggal lain"
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'}
+            >
+              📅 {formatDateHeader(selectedDate)} ✏️
+              <input 
+                ref={dateInputRef}
+                type="date" 
+                value={selectedDate} 
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedDate(e.target.value);
+                  }
+                }} 
+                style={{
+                  opacity: 0,
+                  width: 0,
+                  height: 0,
+                  padding: 0,
+                  margin: 0,
+                  border: 'none',
+                  position: 'absolute',
+                  pointerEvents: 'none'
+                }}
+              />
+            </div>
             <span style={{ 
               fontSize: '0.7rem', 
               background: 'var(--accent-volt-glow)', 

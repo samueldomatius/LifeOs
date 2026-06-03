@@ -241,6 +241,8 @@ export default function App() {
     return `${year}-${month}-${day}`;
   });
 
+  const lastCheckedSystemTodayRef = useRef(selectedDate);
+
   const [selectedDayIndex, setSelectedDayIndex] = useState(null);
 
   const [currentDay, setCurrentDay] = useState(() => {
@@ -655,29 +657,24 @@ export default function App() {
       const day = now.getDate().toString().padStart(2, '0');
       const todayStr = `${year}-${month}-${day}`;
 
-      setSelectedDate(prevDate => {
-        if (prevDate !== todayStr) {
-          // Date has rolled over!
-          // We must update the active selected date to todayStr.
-          setCurrentDay(prevDay => {
-            if (prevDay.date !== todayStr) {
-              // Return new blank slate
-              return {
-                sleepHours: 7,
-                sleepQuality: 'good',
-                steps: 0,
-                workoutMinutes: 0,
-                waterIntake: 0,
-                directMood: 'neutral',
-                date: todayStr
-              };
-            }
-            return prevDay;
-          });
-          return todayStr;
-        }
-        return prevDate;
-      });
+      if (lastCheckedSystemTodayRef.current !== todayStr) {
+        lastCheckedSystemTodayRef.current = todayStr;
+        setSelectedDate(todayStr);
+        setCurrentDay(prevDay => {
+          if (prevDay.date !== todayStr) {
+            return {
+              sleepHours: 7,
+              sleepQuality: 'good',
+              steps: 0,
+              workoutMinutes: 0,
+              waterIntake: 0,
+              directMood: 'neutral',
+              date: todayStr
+            };
+          }
+          return prevDay;
+        });
+      }
     }, 10000);
     
     return () => clearInterval(clockTimer);
@@ -2683,6 +2680,7 @@ export default function App() {
           tasks={tasks}
           filteredTasks={filteredTasks}
           selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
           taskText={taskText}
           setTaskText={setTaskText}
           taskPriority={taskPriority}
