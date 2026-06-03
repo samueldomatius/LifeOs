@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow HTTPS traffic to all domains (API calls from WebView) -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Explicitly allow API domains used by LifeOS AI -->
+    <domain-config cleartextTrafficPermitted="false">
+        <!-- Google Gemini API -->
+        <domain includeSubdomains="true">generativelanguage.googleapis.com</domain>
+        <!-- OpenRouter AI -->
+        <domain includeSubdomains="true">openrouter.ai</domain>
+        <!-- Firebase Cloud Messaging -->
+        <domain includeSubdomains="true">fcm.googleapis.com</domain>
+        <domain includeSubdomains="true">firebase.googleapis.com</domain>
+        <!-- Supabase Database -->
+        <domain includeSubdomains="true">supabase.com</domain>
+        <domain includeSubdomains="true">supabase.co</domain>
+        <!-- Backend server (Railway/Render deploy) -->
+        <domain includeSubdomains="true">railway.app</domain>
+        <domain includeSubdomains="true">onrender.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>
