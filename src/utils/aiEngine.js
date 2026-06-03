@@ -12,21 +12,37 @@
 
 // Load API keys dynamically from environment variables for Git security
 const envKeysStr = import.meta.env.VITE_GEMINI_API_KEYS || "";
-const rawEnvKeys = envKeysStr
-  ? envKeysStr
-      .trim()
-      .replace(/^["']|["']$/g, "") // strip leading/trailing quotes
-      .split(",")
-      .map(k => k.trim().replace(/^["']|["']$/g, "")) // strip quotes from individual keys
-      .filter(Boolean)
-  : [];
 
-// Separate keys by provider type
-const geminiKeys = rawEnvKeys.filter(k => k.startsWith("AIzaSy"));
-const openRouterKeys = rawEnvKeys.filter(k => k.startsWith("sk-or-v1-"));
-const otherKeys = rawEnvKeys.filter(k => !k.startsWith("AIzaSy") && !k.startsWith("sk-or-v1-"));
+function parseKeysString(str) {
+  return str
+    ? str
+        .trim()
+        .replace(/^["']|["']$/g, "") // strip leading/trailing quotes
+        .split(",")
+        .map(k => k.trim().replace(/^["']|["']$/g, "")) // strip quotes from individual keys
+        .filter(Boolean)
+    : [];
+}
+
+let rawEnvKeys = parseKeysString(envKeysStr);
+let geminiKeys = rawEnvKeys.filter(k => k.startsWith("AIzaSy"));
+let openRouterKeys = rawEnvKeys.filter(k => k.startsWith("sk-or-v1-"));
+let otherKeys = rawEnvKeys.filter(k => !k.startsWith("AIzaSy") && !k.startsWith("sk-or-v1-"));
 
 console.log(`🤖 [LifeOS AI Core] Loaded ${rawEnvKeys.length} keys: Gemini=${geminiKeys.length}, OpenRouter=${openRouterKeys.length}, Other=${otherKeys.length}`);
+
+export function initializeAiKeys(keysStr) {
+  if (!keysStr) return;
+  const newKeys = parseKeysString(keysStr);
+  if (newKeys.length > 0) {
+    // Deduplicate and combine
+    rawEnvKeys = Array.from(new Set([...rawEnvKeys, ...newKeys]));
+    geminiKeys = rawEnvKeys.filter(k => k.startsWith("AIzaSy"));
+    openRouterKeys = rawEnvKeys.filter(k => k.startsWith("sk-or-v1-"));
+    otherKeys = rawEnvKeys.filter(k => !k.startsWith("AIzaSy") && !k.startsWith("sk-or-v1-"));
+    console.log(`🤖 [LifeOS AI Core] Dynamically updated keys: Gemini=${geminiKeys.length}, OpenRouter=${openRouterKeys.length}, Other=${otherKeys.length}`);
+  }
+}
 
 // --- Blacklist: Keys that are rate-limited / quota exhausted ---
 // Map<keyString, expiryTimestamp> — blacklisted for 1 hour

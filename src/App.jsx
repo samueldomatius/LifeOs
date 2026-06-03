@@ -42,6 +42,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { startFocusSound, stopFocusSound } from './utils/focusSynth';
 import { isSupabaseConfigured, pullUserData, pushUserData } from './utils/supabaseClient';
 import { checkPrismaReachable, pullUserDataPrisma, pushUserDataPrisma } from './utils/prismaClient';
+import { API_URL } from './config';
 
 import { 
   calculateLifeScore, 
@@ -51,7 +52,8 @@ import {
   getSeededHistory,
   getAIDailySummary,
   getAIFinanceAdvice,
-  getAIMonthlySummary
+  getAIMonthlySummary,
+  initializeAiKeys
 } from './utils/aiEngine';
 
 // Default tasks mapped to March 2026 dates (matching calendar)
@@ -581,6 +583,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const getNumericId = (stringId) => {
+      if (!stringId) return Math.floor(Math.random() * 1000000);
+      if (typeof stringId === 'number') return stringId % 1000000;
+      let hash = 0;
+      for (let i = 0; i < stringId.length; i++) {
+        hash = (hash << 5) - hash + stringId.charCodeAt(i);
+        hash |= 0;
+      }
+      return Math.abs(hash) % 1000000;
+    };
+
     const checkReminders = async () => {
       const now = new Date();
       const currentHrs = now.getHours().toString().padStart(2, '0');
@@ -592,6 +605,9 @@ export default function App() {
       const systemMonth = (now.getMonth() + 1).toString().padStart(2, '0');
       const systemDay = now.getDate().toString().padStart(2, '0');
       const systemTodayStr = `${systemYear}-${systemMonth}-${systemDay}`;
+
+      const nativeNotifications = [];
+      const newInAppNotifs = [];
 
       for (const t of tasks) {
         if (t.status === 'pending' && t.dueDate === systemTodayStr && t.time) {
@@ -613,38 +629,25 @@ export default function App() {
                 timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
                 read: false
               };
+              newInAppNotifs.push(newNotif);
 
-              setNotifications(prev => [newNotif, ...prev]);
-              setActiveToast({
-                id: Date.now(),
-                title: newNotif.title,
-                body: newNotif.body
-              });
-
-              try {
-                if (Capacitor.isNativePlatform()) {
-                  // Native: use LocalNotifications - muncul di system tray HP
-                  await LocalNotifications.schedule({
-                    notifications: [{
-                      id: Math.floor(Math.random() * 100000),
-                      title: "⏰ Tugas Mendatang (H-5 Menit)",
-                      body: `Tugas "${t.text}" akan dimulai dalam 5 menit!`,
-                      channelId: 'lifeos_reminders',
-                      schedule: { at: new Date(Date.now() + 500) },
-                      sound: 'default',
-                      smallIcon: 'ic_stat_icon_config_sample',
-                      iconColor: '#7C3AED'
-                    }]
-                  });
-                } else if ('Notification' in window && Notification.permission === 'granted') {
-                  new Notification("⏰ Pengingat Tugas LifeOS (H-5)", {
-                    body: `Tugas "${t.text}" mulai dalam 5 menit!`,
-                    tag: t.id,
-                    requireInteraction: true
-                  });
-                }
-              } catch (e) {
-                console.error("Failed notification:", e);
+              if (Capacitor.isNativePlatform()) {
+                nativeNotifications.push({
+                  id: getNumericId(`h5_${t.id}`),
+                  title: "⏰ Tugas Mendatang (H-5 Menit)",
+                  body: `Tugas "${t.text}" akan dimulai dalam 5 menit!`,
+                  channelId: 'lifeos_reminders',
+                  schedule: { at: new Date(Date.now() + 500) },
+                  sound: 'default',
+                  smallIcon: 'ic_stat_icon_config_sample',
+                  iconColor: '#7C3AED'
+                });
+              } else if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification("⏰ Pengingat Tugas LifeOS (H-5)", {
+                  body: `Tugas "${t.text}" mulai dalam 5 menit!`,
+                  tag: `h5_${t.id}`,
+                  requireInteraction: true
+                });
               }
             }
           }
@@ -662,42 +665,48 @@ export default function App() {
                 timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
                 read: false
               };
+              newInAppNotifs.push(newNotif);
 
-              setNotifications(prev => [newNotif, ...prev]);
-              setActiveToast({
-                id: Date.now(),
-                title: newNotif.title,
-                body: newNotif.body
-              });
-
-              try {
-                if (Capacitor.isNativePlatform()) {
-                  // Native: use LocalNotifications - muncul di system tray HP
-                  await LocalNotifications.schedule({
-                    notifications: [{
-                      id: Math.floor(Math.random() * 100000),
-                      title: "🚨 Waktu Tugas Mulai!",
-                      body: `Saatnya mengerjakan: "${t.text}" (Jadwal: ${t.time})`,
-                      channelId: 'lifeos_reminders',
-                      schedule: { at: new Date(Date.now() + 500) },
-                      sound: 'default',
-                      smallIcon: 'ic_stat_icon_config_sample',
-                      iconColor: '#7C3AED'
-                    }]
-                  });
-                } else if ('Notification' in window && Notification.permission === 'granted') {
-                  new Notification("🚨 Waktu Tugas Mulai!", {
-                    body: `Saatnya mengerjakan: "${t.text}" (Jadwal: ${t.time})`,
-                    tag: t.id,
-                    requireInteraction: true
-                  });
-                }
-              } catch (e) {
-                console.error("Failed notification:", e);
+              if (Capacitor.isNativePlatform()) {
+                nativeNotifications.push({
+                  id: getNumericId(`now_${t.id}`),
+                  title: "🚨 Waktu Tugas Mulai!",
+                  body: `Saatnya mengerjakan: "${t.text}" (Jadwal: ${t.time})`,
+                  channelId: 'lifeos_reminders',
+                  schedule: { at: new Date(Date.now() + 500) },
+                  sound: 'default',
+                  smallIcon: 'ic_stat_icon_config_sample',
+                  iconColor: '#7C3AED'
+                });
+              } else if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification("🚨 Waktu Tugas Mulai!", {
+                  body: `Saatnya mengerjakan: "${t.text}" (Jadwal: ${t.time})`,
+                  tag: `now_${t.id}`,
+                  requireInteraction: true
+                });
               }
-
             }
           }
+        }
+      }
+
+      if (newInAppNotifs.length > 0) {
+        setNotifications(prev => [...newInAppNotifs, ...prev]);
+        setActiveToast({
+          id: Date.now(),
+          title: newInAppNotifs[0].title,
+          body: newInAppNotifs[0].body
+        });
+      }
+
+      if (nativeNotifications.length > 0) {
+        try {
+          await LocalNotifications.schedule({
+            notifications: nativeNotifications
+          });
+          console.log(`Scheduled ${nativeNotifications.length} native local notifications in a batch.`);
+        } catch (e) {
+          console.error("Failed to schedule batch native notifications:", e);
         }
       }
     };
@@ -920,6 +929,19 @@ export default function App() {
     }
     setDbLoading(true);
     const initDb = async () => {
+      // Fetch dynamic AI Keys from backend if available (solves AppFlow env issues)
+      try {
+        const keyRes = await fetch(`${API_URL}/api/ai-keys`);
+        if (keyRes.ok) {
+          const keyData = await keyRes.json();
+          if (keyData.keys) {
+            initializeAiKeys(keyData.keys);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch dynamic AI keys from server:", err);
+      }
+
       const prismaReachable = await checkPrismaReachable();
       
       if (prismaReachable) {
@@ -2079,6 +2101,58 @@ export default function App() {
       <div className={`app-viewport theme-transition ${theme}`}>
         <div className="phone-screen theme-transition" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '2rem' }}>
           <AuthScreen setUserId={setUserId} setUserEmail={setUserEmail} theme={theme} toggleTheme={toggleTheme} />
+        </div>
+      </div>
+    );
+  }
+
+  if (dbLoading) {
+    return (
+      <div className={`app-viewport theme-transition ${theme}`}>
+        <div className="phone-screen theme-transition" style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          padding: '2rem'
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem' }}>
+            <div className="pulsing-glow-dot" style={{ 
+              width: '45px', 
+              height: '45px', 
+              background: 'radial-gradient(circle, var(--accent-volt, #a3e635) 0%, rgba(163,230,53,0.1) 70%)', 
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 15px rgba(163,230,53,0.3)',
+            }}>
+              <div style={{ 
+                width: '12px', 
+                height: '12px', 
+                background: 'var(--accent-volt, #a3e635)', 
+                borderRadius: '50%' 
+              }} />
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <h2 style={{ 
+                fontFamily: 'Outfit', 
+                fontSize: '1.1rem', 
+                fontWeight: 800, 
+                color: 'var(--text-primary)',
+                margin: '0 0 4px 0' 
+              }}>
+                Menyelaraskan Data 🌌
+              </h2>
+              <p style={{ 
+                fontSize: '0.72rem', 
+                color: 'var(--text-muted)', 
+                margin: 0 
+              }}>
+                Menghubungkan ke cloud & menyiapkan lembar kerja Anda...
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );

@@ -392,6 +392,12 @@ app.post('/api/test-push', async (req, res) => {
   }
 });
 
+// Endpoint to retrieve AI API keys dynamically
+app.get('/api/ai-keys', (req, res) => {
+  const keys = process.env.VITE_GEMINI_API_KEYS || "";
+  res.json({ keys });
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', framework: 'Prisma Client + Express' });
