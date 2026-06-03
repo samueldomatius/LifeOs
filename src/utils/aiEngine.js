@@ -1,7 +1,14 @@
 // LifeOS AI Engine ("Otak Pusat") powered by Google Gemini API
 // Sinergi analisis lintas-dimensi antara tidur, pengeluaran, mood, dan produktivitas harian.
 
-let currentKeyIndex = 0;
+// ============================================================
+// SMART KEY ROTATION SYSTEM
+// - Tracks quota-exhausted keys per provider (blacklist)
+// - When one Gemini key habis kuota → coba Gemini key berikutnya
+// - Ketika semua Gemini key habis → pindah ke semua OpenRouter key
+// - Ketika semua OpenRouter key habis → coba ulang dari awal
+// - Blacklist di-reset setelah 1 jam
+// ============================================================
 
 // Load API keys dynamically from environment variables for Git security
 const envKeysStr = import.meta.env.VITE_GEMINI_API_KEYS || "";
@@ -14,13 +21,31 @@ const rawEnvKeys = envKeysStr
       .filter(Boolean)
   : [];
 
-// Prioritize Gemini Native keys first, then fall back to OpenRouter keys
+// Separate keys by provider type
 const geminiKeys = rawEnvKeys.filter(k => k.startsWith("AIzaSy"));
 const openRouterKeys = rawEnvKeys.filter(k => k.startsWith("sk-or-v1-"));
 const otherKeys = rawEnvKeys.filter(k => !k.startsWith("AIzaSy") && !k.startsWith("sk-or-v1-"));
 
-const API_KEYS = [...geminiKeys, ...openRouterKeys, ...otherKeys];
-console.log(`🤖 [LifeOS AI Core] Terdeteksi ${API_KEYS.length} API Key dari .env (Gemini: ${geminiKeys.length}, OpenRouter: ${openRouterKeys.length})`);
+console.log(`🤖 [LifeOS AI Core] Loaded ${rawEnvKeys.length} keys: Gemini=${geminiKeys.length}, OpenRouter=${openRouterKeys.length}, Other=${otherKeys.length}`);
+
+// --- Blacklist: Keys that are rate-limited / quota exhausted ---
+// Map<keyString, expiryTimestamp> — blacklisted for 1 hour
+const keyBlacklist = new Map();
+
+const isKeyBlacklisted = (key) => {
+  if (!keyBlacklist.has(key)) return false;
+  const expiry = keyBlacklist.get(key);
+  if (Date.now() > expiry) {
+    keyBlacklist.delete(key); // expired — remove from blacklist
+    return false;
+  }
+  return true;
+};
+
+const blacklistKey = (key, durationMs = 60 * 60 * 1000) => {
+  keyBlacklist.set(key, Date.now() + durationMs);
+  console.warn(`⛔ [AI Key Rotation] Key blacklisted for ${durationMs / 60000} min: ${key.substring(0, 12)}...`);
+};
 
 export const getApiKeysList = () => {
   try {
@@ -31,6 +56,9 @@ export const getApiKeysList = () => {
   } catch (e) {}
   return [...geminiKeys, ...openRouterKeys, ...otherKeys];
 };
+
+// Get available (non-blacklisted) keys for a specific provider
+const getAvailableKeys = (keyArray) => keyArray.filter(k => !isKeyBlacklisted(k));
 
 export const safeParseJSON = (text) => {
   let cleaned = text.trim();
@@ -59,193 +87,263 @@ export const safeParseJSON = (text) => {
   }
 };
 
-// Helper to make direct HTTP fetch requests supporting OpenRouter and Gemini Native key rotation failover
-async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineData = null, retryCount = 0, errorsAccumulated = []) {
-  const keys = getApiKeysList();
-  if (retryCount >= keys.length) {
-    throw new Error(`Semua API Key habis. Detail: [ ${errorsAccumulated.join(" | ")} ]`);
-  }
-  
-  const activeKey = keys[currentKeyIndex % keys.length];
+// ============================================================
+// TRY A SINGLE GEMINI NATIVE KEY across all fallback models
+// Returns response text on success, throws on full failure
+// ============================================================
+async function tryGeminiKey(key, finalSystemPrompt, userPrompt, jsonSchema, inlineData) {
+  const nativeModels = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash"
+  ];
 
-  let finalSystemPrompt = systemPrompt;
-  if (jsonSchema) {
-    const schemaStr = JSON.stringify(jsonSchema, null, 2);
-    finalSystemPrompt = `${systemPrompt || ""}\n\nIMPORTANT: You must respond ONLY with a valid JSON object matching the following schema. Do NOT include any conversational introduction, explanation, or notes. Your entire response must be a single parseable JSON object.
-JSON Schema:
-${schemaStr}`;
-  }
+  const modelErrors = [];
+  for (const modelName of nativeModels) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`;
+      const generationConfig = {
+        temperature: jsonSchema ? 0.15 : 0.7,
+        maxOutputTokens: 2500
+      };
 
-  try {
-    if (activeKey.startsWith("sk-or-v1-")) {
-      // --- OpenRouter Chat Completion Call ---
-      const url = "https://openrouter.ai/api/v1/chat/completions";
-      const messages = [];
-      if (finalSystemPrompt) {
-        messages.push({ role: "system", content: finalSystemPrompt });
+      if (jsonSchema) {
+        generationConfig.responseMimeType = "application/json";
+        generationConfig.responseSchema = jsonSchema;
+      }
+
+      const parts = [];
+      if (finalSystemPrompt && userPrompt) {
+        parts.push({ text: `${finalSystemPrompt}\n\nUser Input/Context:\n${userPrompt}` });
+      } else if (finalSystemPrompt) {
+        parts.push({ text: finalSystemPrompt });
+      } else if (userPrompt) {
+        parts.push({ text: userPrompt });
       }
 
       if (inlineData) {
-        // Multimodal receipt OCR support
-        messages.push({
-          role: "user",
-          content: [
-            { type: "text", text: userPrompt || "Scan this receipt." },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${inlineData.mimeType};base64,${inlineData.data}`
-              }
-            }
-          ]
-        });
+        parts.push({ inlineData: { mimeType: inlineData.mimeType, data: inlineData.data } });
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts }],
+          generationConfig
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          console.log(`✅ [Gemini] Success: ${modelName} (key: ${key.substring(0, 12)}...)`);
+          return text;
+        }
+        modelErrors.push(`${modelName}: empty response`);
       } else {
-        messages.push({ role: "user", content: userPrompt });
-      }
+        const errText = await response.text();
+        const status = response.status;
+        modelErrors.push(`${modelName}(${status})`);
 
-      const openRouterModels = [
-        "openrouter/free",
-        "deepseek/deepseek-r1:free",
-        "meta-llama/llama-3-8b-instruct:free",
-        "google/gemini-2.5-flash"
-      ];
-      
-      const modelErrors = [];
-      
-      for (const modelName of openRouterModels) {
-        try {
-          const requestBody = {
-            model: modelName,
-            messages,
-            max_tokens: 1500,
-            temperature: jsonSchema ? 0.15 : 0.7
-          };
-
-          if (jsonSchema && !modelName.includes("free")) {
-            requestBody.response_format = { type: "json_object" };
-          }
-
-          const controller = new AbortController();
-          const timeoutDuration = modelName.includes("free") ? 3500 : 7000; // 3.5s timeout for free models to fail fast
-          const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
-
-          const response = await fetch(url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${activeKey}`,
-              "HTTP-Referer": "https://lifeos.local",
-              "X-Title": "LifeOS App"
-            },
-            body: JSON.stringify(requestBody),
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-
-          if (response.ok) {
-            const data = await response.json();
-            return data.choices?.[0]?.message?.content || "";
-          } else {
-            const errText = await response.text();
-            modelErrors.push(`${modelName}(${response.status}: ${errText.substring(0, 90)})`);
-            if (response.status === 402 || response.status === 401 || response.status === 403) {
-              break;
-            }
-          }
-        } catch (e) {
-          modelErrors.push(`${modelName} error: ${e.message}`);
+        // 429 = rate limit on this model, try next model
+        if (status === 429) {
+          console.warn(`⚠️ [Gemini] Rate limited on ${modelName}, trying next model...`);
+          continue;
         }
-      }
-      
-      throw new Error(`OpenRouter models failed: [ ${modelErrors.join(" | ")} ]`);
-
-    } else {
-      // --- Gemini Native GenerateContent Call ---
-      const nativeModels = [
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-1.5-flash"
-      ];
-      
-      const nativeErrors = [];
-      for (const modelName of nativeModels) {
-        try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
-          const generationConfig = {
-            temperature: jsonSchema ? 0.15 : 0.7,
-            maxOutputTokens: 2500
-          };
-          
-          if (jsonSchema) {
-            generationConfig.responseMimeType = "application/json";
-            generationConfig.responseSchema = jsonSchema;
-          }
-
-          const parts = [];
-          if (finalSystemPrompt && userPrompt) {
-            parts.push({ text: `${finalSystemPrompt}\n\nUser Input/Context:\n${userPrompt}` });
-          } else if (finalSystemPrompt) {
-            parts.push({ text: finalSystemPrompt });
-          } else if (userPrompt) {
-            parts.push({ text: userPrompt });
-          }
-
-          if (inlineData) {
-            parts.push({
-              inlineData: {
-                mimeType: inlineData.mimeType,
-                data: inlineData.data
-              }
-            });
-          }
-
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout - gemini-2.5-flash is a thinking model
-
-          const response = await fetch(url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: "user",
-                  parts: parts
-                }
-              ],
-              generationConfig
-            }),
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-
-          if (response.ok) {
-            const data = await response.json();
-            return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          } else {
-            const errText = await response.text();
-            nativeErrors.push(`${modelName}(${response.status}: ${errText.substring(0, 90)})`);
-            // Only break (stop trying models) on auth errors - let 429 & 400 try next model
-            if (response.status === 403 || response.status === 401) {
-              break;
-            }
-            // For 429 (rate limit) and 400, continue to next model
-          }
-        } catch (e) {
-          nativeErrors.push(`${modelName} error: ${e.message}`);
+        // 401/403 = invalid key, blacklist immediately and stop
+        if (status === 401 || status === 403) {
+          blacklistKey(key, 24 * 60 * 60 * 1000); // 24 jam untuk invalid key
+          throw new Error(`Key invalid (${status}): blacklisted`);
         }
+        // 400 = bad request, skip model
+        if (status === 400) continue;
       }
-      
-      throw new Error(`Gemini Native models failed: [ ${nativeErrors.join(" | ")} ]`);
+    } catch (e) {
+      if (e.message.includes('blacklisted')) throw e;
+      if (e.name === 'AbortError') {
+        modelErrors.push(`${modelName}: timeout`);
+        continue;
+      }
+      modelErrors.push(`${modelName}: ${e.message}`);
     }
-  } catch (error) {
-    const errorMsg = `KeyIndex ${currentKeyIndex}: ${error.message}`;
-    console.warn(errorMsg);
-    currentKeyIndex = (currentKeyIndex + 1) % keys.length;
-    return await callGemini(systemPrompt, userPrompt, jsonSchema, inlineData, retryCount + 1, [...errorsAccumulated, errorMsg]);
   }
+
+  // All models exhausted for this key → quota habis, blacklist key 1 jam
+  blacklistKey(key, 60 * 60 * 1000);
+  throw new Error(`All Gemini models failed for key ${key.substring(0, 12)}: [${modelErrors.join(', ')}]`);
+}
+
+// ============================================================
+// TRY A SINGLE OPENROUTER KEY across all free models
+// ============================================================
+async function tryOpenRouterKey(key, finalSystemPrompt, userPrompt, jsonSchema, inlineData) {
+  const openRouterModels = [
+    "google/gemini-2.5-flash:free",
+    "deepseek/deepseek-r1:free",
+    "meta-llama/llama-4-scout:free",
+    "meta-llama/llama-3.1-8b-instruct:free",
+    "google/gemini-2.0-flash-exp:free",
+    "google/gemini-flash-1.5:free"
+  ];
+
+  const url = "https://openrouter.ai/api/v1/chat/completions";
+  const messages = [];
+  if (finalSystemPrompt) messages.push({ role: "system", content: finalSystemPrompt });
+
+  if (inlineData) {
+    messages.push({
+      role: "user",
+      content: [
+        { type: "text", text: userPrompt || "Scan this image." },
+        { type: "image_url", image_url: { url: `data:${inlineData.mimeType};base64,${inlineData.data}` } }
+      ]
+    });
+  } else {
+    messages.push({ role: "user", content: userPrompt });
+  }
+
+  const modelErrors = [];
+  for (const modelName of openRouterModels) {
+    try {
+      const requestBody = {
+        model: modelName,
+        messages,
+        max_tokens: 1500,
+        temperature: jsonSchema ? 0.15 : 0.7
+      };
+
+      if (jsonSchema && !modelName.includes(":free")) {
+        requestBody.response_format = { type: "json_object" };
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${key}`,
+          "HTTP-Referer": "https://lifeos.app",
+          "X-Title": "LifeOS App"
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.choices?.[0]?.message?.content;
+        if (text) {
+          console.log(`✅ [OpenRouter] Success: ${modelName} (key: ${key.substring(0, 12)}...)`);
+          return text;
+        }
+        modelErrors.push(`${modelName}: empty response`);
+      } else {
+        const errText = await response.text();
+        const status = response.status;
+        modelErrors.push(`${modelName}(${status})`);
+
+        // 402 = insufficient credits, 401/403 = invalid key
+        if (status === 402 || status === 401 || status === 403) {
+          blacklistKey(key, 60 * 60 * 1000); // 1 jam
+          throw new Error(`OpenRouter key quota/auth failed (${status})`);
+        }
+        // 429 = rate limit, coba model berikutnya
+        if (status === 429) continue;
+      }
+    } catch (e) {
+      if (e.message.includes('quota') || e.message.includes('auth')) throw e;
+      if (e.name === 'AbortError') {
+        modelErrors.push(`${modelName}: timeout`);
+        continue;
+      }
+      modelErrors.push(`${modelName}: ${e.message}`);
+    }
+  }
+
+  // Semua model OpenRouter gagal untuk key ini
+  blacklistKey(key, 30 * 60 * 1000); // 30 menit
+  throw new Error(`All OpenRouter models failed for key ${key.substring(0, 12)}: [${modelErrors.join(', ')}]`);
+}
+
+// ============================================================
+// MAIN callGemini - Smart cascading provider fallover
+// Priority: Custom Key → Gemini Native Keys → OpenRouter Keys
+// ============================================================
+async function callGemini(systemPrompt, userPrompt, jsonSchema = null, inlineData = null) {
+  let finalSystemPrompt = systemPrompt;
+  if (jsonSchema) {
+    const schemaStr = JSON.stringify(jsonSchema, null, 2);
+    finalSystemPrompt = `${systemPrompt || ""}\n\nIMPORTANT: You must respond ONLY with a valid JSON object matching the following schema. Do NOT include any conversational introduction, explanation, or notes. Your entire response must be a single parseable JSON object.\nJSON Schema:\n${schemaStr}`;
+  }
+
+  // Build ordered provider list:
+  // 1. Custom Gemini key (if set by user)
+  // 2. All Gemini native keys (from .env)
+  // 3. All OpenRouter keys (from .env)
+  const allGeminiKeys = [];
+  try {
+    const customKey = localStorage.getItem('lifeos_custom_gemini_key');
+    if (customKey && customKey.trim()) allGeminiKeys.push(customKey.trim());
+  } catch (e) {}
+  allGeminiKeys.push(...geminiKeys);
+
+  const allOpenRouterKeys = [...openRouterKeys];
+  const allOtherKeys = [...otherKeys];
+
+  const errors = [];
+
+  // === PHASE 1: Try all available Gemini Native keys ===
+  const availableGemini = getAvailableKeys(allGeminiKeys);
+  if (availableGemini.length > 0) {
+    console.log(`🔑 [AI] Phase 1: Trying ${availableGemini.length} Gemini key(s)...`);
+    for (const key of availableGemini) {
+      try {
+        return await tryGeminiKey(key, finalSystemPrompt, userPrompt, jsonSchema, inlineData);
+      } catch (e) {
+        errors.push(`Gemini[${key.substring(0, 12)}]: ${e.message}`);
+        console.warn(`⚠️ [AI] Gemini key failed, trying next... (${e.message})`);
+      }
+    }
+    console.warn(`⚠️ [AI] All Gemini keys exhausted, switching to OpenRouter...`);
+  } else {
+    console.warn(`⚠️ [AI] All Gemini keys blacklisted, skipping to OpenRouter...`);
+  }
+
+  // === PHASE 2: Try all available OpenRouter keys ===
+  const availableOR = getAvailableKeys(allOpenRouterKeys);
+  if (availableOR.length > 0) {
+    console.log(`🔑 [AI] Phase 2: Trying ${availableOR.length} OpenRouter key(s)...`);
+    for (const key of availableOR) {
+      try {
+        return await tryOpenRouterKey(key, finalSystemPrompt, userPrompt, jsonSchema, inlineData);
+      } catch (e) {
+        errors.push(`OpenRouter[${key.substring(0, 12)}]: ${e.message}`);
+        console.warn(`⚠️ [AI] OpenRouter key failed, trying next... (${e.message})`);
+      }
+    }
+    console.warn(`⚠️ [AI] All OpenRouter keys exhausted!`);
+  }
+
+  // === PHASE 3: If ALL keys are blacklisted, clear blacklist and throw ===
+  const allBlacklisted = [...allGeminiKeys, ...allOpenRouterKeys].every(k => isKeyBlacklisted(k));
+  if (allBlacklisted) {
+    console.warn("🔄 [AI] All keys blacklisted. Clearing blacklist for fresh retry...");
+    keyBlacklist.clear();
+  }
+
+  throw new Error(`❌ Semua API key habis kuota. Detail: [ ${errors.join(" | ")} ]`);
+
 }
 
 // Pre-seeded 2-week history data to showcase personalized AI pattern learning instantly
