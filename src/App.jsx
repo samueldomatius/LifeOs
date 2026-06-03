@@ -138,6 +138,7 @@ export default function App() {
   });
 
   const [justLoggedIn, setJustLoggedIn] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   // --- State Stores ---
   const [theme, setTheme] = useState(() => {
@@ -621,7 +622,7 @@ export default function App() {
                 title: "🚨 Waktu Tugas Mulai!",
                 body: `Saatnya mengerjakan: "${t.text}" (Jadwal: ${t.time})`,
                 channelId: 'lifeos_reminders',
-                schedule: { at: taskTime },
+                schedule: { at: taskTime, allowWhileIdle: true },
                 sound: 'default',
                 smallIcon: 'ic_stat_icon_config_sample',
                 iconColor: '#7C3AED'
@@ -636,7 +637,7 @@ export default function App() {
                 title: "⏰ Tugas Mendatang (H-5 Menit)",
                 body: `Tugas "${t.text}" akan dimulai dalam 5 menit!`,
                 channelId: 'lifeos_reminders',
-                schedule: { at: fiveMinsBefore },
+                schedule: { at: fiveMinsBefore, allowWhileIdle: true },
                 sound: 'default',
                 smallIcon: 'ic_stat_icon_config_sample',
                 iconColor: '#7C3AED'
@@ -993,6 +994,7 @@ export default function App() {
   useEffect(() => {
     if (!userId) {
       setDbLoading(false);
+      setIsInitializing(false);
       return;
     }
     setDbLoading(true);
@@ -1102,6 +1104,7 @@ export default function App() {
       }
       setDbLoading(false);
       setJustLoggedIn(false);
+      setIsInitializing(false);
     };
     initDb();
   }, [userId]);
@@ -2164,6 +2167,81 @@ export default function App() {
     setTimerRunning(false);
     setTimerTime(1500);
   };
+
+  if (isInitializing) {
+    return (
+      <div className={`app-viewport theme-transition ${theme}`}>
+        <div className="phone-screen theme-transition" style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          padding: '2rem'
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', textAlign: 'center' }}>
+            <div className="pulsing-glow-dot" style={{ 
+              width: '80px', 
+              height: '80px', 
+              background: 'radial-gradient(circle, var(--accent-volt, #a3e635) 0%, rgba(163,230,53,0.05) 75%)', 
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 25px rgba(163,230,53,0.25)',
+              marginBottom: '0.5rem'
+            }}>
+              <span style={{ fontSize: '2rem', filter: 'drop-shadow(0 0 10px rgba(163,230,53,0.6))' }}>🌌</span>
+            </div>
+            
+            <div>
+              <h1 style={{ 
+                fontFamily: 'Outfit', 
+                fontSize: '2.2rem', 
+                fontWeight: 900, 
+                letterSpacing: '0.05em',
+                background: 'linear-gradient(135deg, #ffffff, var(--text-muted, #a1a1aa))',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                margin: '0 0 6px 0'
+              }}>
+                LIFEOS CORE
+              </h1>
+              <p style={{ 
+                fontSize: '0.78rem', 
+                color: 'var(--text-muted, #a1a1aa)', 
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                margin: 0
+              }}>
+                Mempersiapkan Data Anda...
+              </p>
+            </div>
+
+            <div style={{
+              width: '120px',
+              height: '3px',
+              background: 'rgba(255,255,255,0.08)',
+              borderRadius: '10px',
+              overflow: 'hidden',
+              marginTop: '1rem',
+              position: 'relative'
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                height: '100%',
+                background: 'var(--accent-volt, #a3e635)',
+                width: '60%',
+                borderRadius: '10px',
+                animation: 'pulse 1.5s infinite ease-in-out'
+              }} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!userId || !userEmail) {
     return (
